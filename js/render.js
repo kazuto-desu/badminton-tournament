@@ -41,7 +41,7 @@
     add('主催', esc(t.organizer));
     add('主管', esc(t.host));
     add('後援・協賛', esc(t.sponsor));
-    add('期日', esc(t.date) + (t.startTime ? `　${esc(t.startTime)} 試合開始予定` : ''));
+    if (t.date) add('期日', esc(t.date) + (t.startTime ? `　${esc(t.startTime)} 試合開始予定` : ''));
     add('会場', esc(t.venue) + (t.address ? `<br><span class="muted">${esc(t.address)}</span>` : ''));
     if (state.events.length) {
       add('種目', '<table class="tbl guide-ev"><thead><tr><th>種目</th><th>試合方法</th><th>定員</th><th>参加料</th></tr></thead><tbody>' + state.events.map((ev) => {

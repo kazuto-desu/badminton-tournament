@@ -100,14 +100,6 @@
       s.mergeCells(1, 1, 1, cols.length + 1);
       s.getCell(1, 1).value = `${ev.name}　申込`;
       s.getCell(1, 1).font = { size: 14, bold: true };
-      // 試合形式（リーグ戦など）・ゲーム数は載せない
-      const sub = [BT.TYPES[ev.type] || ''];
-      if (ev.fee) sub.push('参加料 ' + ev.fee);
-      if (ev.capacity) sub.push('定員 ' + ev.capacity);
-      if (ev.note) sub.push(ev.note);
-      s.mergeCells(2, 1, 2, cols.length + 1);
-      s.getCell(2, 1).value = sub.filter(Boolean).join('　／　');
-      s.getCell(2, 1).font = { size: 10, color: { argb: 'FF555555' } };
       const head = s.getRow(HEAD_ROW);
       head.values = ['No'].concat(cols.map((c) => c.h));
       head.font = { bold: true };

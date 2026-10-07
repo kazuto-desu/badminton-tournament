@@ -37,9 +37,14 @@
     tournament: {
       name: '', date: '', venue: '', address: '',
       organizer: '', host: '', sponsor: '',
-      contactName: '', contactEmail: '', contactTel: '',
+      contactName: '', contactEmail: '', contactTel: '', contactLine: '', contactQr: '',
       deadline: '', shuttle: '', eligibility: '', method: '', notes: '',
       extraSections: [],
+      // 要項の様式
+      addressee: '関係者各位', issueDate: '', issuer: '', representative: '',
+      titleSuffix: '実施要項', receptionTime: '', eventsText: '', fee: '',
+      applyMethod: '別紙申し込み用紙に必要事項を記入のうえ、下記までメールまたはLINEで申し込み下さい。',
+      deadlineNote: '※締切期限厳守でお願い致します', era: 'wareki', showEventTable: false,
       courts: 6, startTime: '09:00', matchMinutes: 20, restMinutes: 10,
       apiUrl: '', apiKey: '', autoPublish: false, acceptApply: true,
     },
@@ -53,16 +58,20 @@
   BT.newEvent = () => ({
     id: BT.uid('e'), name: '', type: 'doubles', format: 'tournament',
     groupSize: 4, advance: 1, thirdPlace: false,
-    games: 3, points: 21, fee: '', capacity: '', courts: '', note: '',
+    games: 3, points: 21, fee: '', capacity: '', courts: '', note: '', minutes: '',
+    // 団体戦
+    rubbers: '第1ダブルス,第2ダブルス,シングルス', teamMin: 3, teamMax: 6, playAll: false,
   });
 
   BT.newEntry = (eventId) => ({
     id: BT.uid('n'), eventId, players: [{ name: '', kana: '', team: '' }, { name: '', kana: '', team: '' }],
-    team: '', seed: '', contactName: '', contactEmail: '', contactTel: '', memo: '',
+    team: '', teamName: '', seed: '', contactName: '', contactEmail: '', contactTel: '', memo: '',
     createdAt: Date.now(), source: 'manual',
   });
 
-  BT.playerCount = (ev) => (ev && ev.type === 'singles') ? 1 : (ev && ev.type === 'team') ? 1 : 2;
+  BT.isTeamEv = (ev) => !!ev && ev.type === 'team';
+  BT.playerCount = (ev) => (ev && ev.type === 'singles') ? 1 : BT.isTeamEv(ev) ? Math.max(1, +ev.teamMax || 6) : 2;
+  BT.rubberList = (ev) => String((ev && ev.rubbers) || '').split(/[,、\n]+/).map((s) => s.trim()).filter(Boolean);
 
   // ---------- エントリー表示 ----------
   BT.entryTeam = (en) => {
@@ -71,7 +80,8 @@
     const ts = [...new Set((en.players || []).map((p) => p.team).filter(Boolean))];
     return ts.join('・');
   };
-  BT.entryNames = (en) => (en ? (en.players || []).map((p) => p.name).filter(Boolean).join('・') : '');
+  BT.entryNames = (en) => (en ? (en.teamName || (en.players || []).map((p) => p.name).filter(Boolean).join('・')) : '');
+  BT.memberNames = (en) => (en ? (en.players || []).map((p) => p.name).filter(Boolean) : []);
   BT.entryLabel = (en) => {
     if (!en) return '';
     const n = BT.entryNames(en), t = BT.entryTeam(en);
@@ -142,6 +152,10 @@
   // ---------- スコア ----------
   BT.scoreText = (m, flip) => {
     if (m.resultType === 'walkover') return '棄権';
+    if (m.rubbers) {
+      const t = BT.teamCount(m);
+      return (flip ? `${t.rb}-${t.ra}` : `${t.ra}-${t.rb}`) + (m.resultType === 'retired' ? '（途中棄権）' : '');
+    }
     const g = (m.scores || []).filter((s) => s && (s[0] !== '' || s[1] !== ''));
     let t = g.map((s) => flip ? `${s[1]}-${s[0]}` : `${s[0]}-${s[1]}`).join(', ');
     if (m.resultType === 'retired') t += '（途中棄権）';
@@ -157,7 +171,34 @@
     });
     return { ga, gb, pa, pb };
   };
-  BT.autoWinner = (m) => { const g = BT.gameCount(m); return g.ga > g.gb ? 'a' : g.gb > g.ga ? 'b' : null; };
+  BT.autoWinner = (m) => {
+    if (m.rubbers) return BT.autoWinnerTeam(m);
+    const g = BT.gameCount(m); return g.ga > g.gb ? 'a' : g.gb > g.ga ? 'b' : null;
+  };
+
+  // ---------- 団体戦 ----------
+  // m.rubbers = [{ label, pa, pb, scores:[[x,y],...], result:'a'|'b'|null }]
+  BT.rubberWinner = (r) => r.result || BT.autoWinner({ scores: r.scores || [] });
+  BT.teamCount = (m) => {
+    let ra = 0, rb = 0, ga = 0, gb = 0, pa = 0, pb = 0;
+    (m.rubbers || []).forEach((r) => {
+      const w = BT.rubberWinner(r);
+      if (w === 'a') ra++; else if (w === 'b') rb++;
+      const g = BT.gameCount({ scores: r.scores || [] });
+      ga += g.ga; gb += g.gb; pa += g.pa; pb += g.pb;
+    });
+    return { ra, rb, ga, gb, pa, pb };
+  };
+  BT.autoWinnerTeam = (m) => {
+    const n = (m.rubbers || []).length;
+    const t = BT.teamCount(m);
+    const need = Math.floor(n / 2) + 1;
+    if (t.ra >= need && t.ra > t.rb) return 'a';
+    if (t.rb >= need && t.rb > t.ra) return 'b';
+    const played = (m.rubbers || []).filter((r) => BT.rubberWinner(r)).length;
+    if (played === n && n) return t.ra > t.rb ? 'a' : t.rb > t.ra ? 'b' : null;
+    return null;
+  };
 
   // ---------- 順位（リーグ） ----------
   BT.standings = (c, eventId, group) => {
@@ -169,7 +210,9 @@
     const empty = { rows: [], complete: false, matches: [] };
     if (!g) { c.standingCache.set(key, empty); return empty; }
     const ids = g.entryIds.filter((id) => c.entry.has(id));
-    const rows = new Map(ids.map((id) => [id, { id, played: 0, win: 0, lose: 0, gw: 0, gl: 0, pw: 0, pl: 0 }]));
+    const rows = new Map(ids.map((id) => [id, { id, played: 0, win: 0, lose: 0, mw: 0, ml: 0, gw: 0, gl: 0, pw: 0, pl: 0 }]));
+    const isTeam = BT.isTeamEv(ev);
+    const nRub = BT.rubberList(ev).length || 3;
     const ms = c.state.matches.filter((m) => m.eventId === eventId && m.stage === 'L' && m.group === group);
     let complete = ms.length > 0 || ids.length <= 1;
     const h2h = new Map();
@@ -179,8 +222,16 @@
       if (!rows.has(a) || !rows.has(b)) return;
       if (!m.result) { complete = false; return; }
       const ra = rows.get(a), rb = rows.get(b);
-      const gc = BT.gameCount(m);
-      if (m.resultType === 'walkover') { if (m.result === 'a') { gc.ga = needGames; gc.gb = 0; } else { gc.gb = needGames; gc.ga = 0; } }
+      let gc;
+      if (isTeam) {
+        const t = BT.teamCount(m);
+        gc = { ma: t.ra, mb: t.rb, ga: t.ga, gb: t.gb, pa: t.pa, pb: t.pb };
+        if (m.resultType === 'walkover') { const need = Math.floor(nRub / 2) + 1; gc = m.result === 'a' ? { ma: need, mb: 0, ga: 0, gb: 0, pa: 0, pb: 0 } : { ma: 0, mb: need, ga: 0, gb: 0, pa: 0, pb: 0 }; }
+        ra.mw += gc.ma; ra.ml += gc.mb; rb.mw += gc.mb; rb.ml += gc.ma;
+      } else {
+        gc = BT.gameCount(m);
+        if (m.resultType === 'walkover') { if (m.result === 'a') { gc.ga = needGames; gc.gb = 0; } else { gc.gb = needGames; gc.ga = 0; } }
+      }
       ra.played++; rb.played++;
       ra.gw += gc.ga; ra.gl += gc.gb; rb.gw += gc.gb; rb.gl += gc.ga;
       ra.pw += gc.pa; ra.pl += gc.pb; rb.pw += gc.pb; rb.pl += gc.pa;
@@ -195,12 +246,15 @@
         if (h2h.get(y.id + '>' + x.id)) return [y, x];
         if (h2h.get(x.id + '>' + y.id)) return [x, y];
       }
-      const sorted = list.slice().sort((x, y) => (ratio(y.gw, y.gl) - ratio(x.gw, x.gl)) || (ratio(y.pw, y.pl) - ratio(x.pw, x.pl)));
+      // 団体戦は 得失マッチ率 → 得失ゲーム率 → 得失点率
+      const key = (r) => [isTeam ? ratio(r.mw, r.ml) : 0, ratio(r.gw, r.gl), ratio(r.pw, r.pl)];
+      const cmpK = (x, y) => { const a = key(x), b = key(y); for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return b[i] - a[i]; return 0; };
+      const sorted = list.slice().sort(cmpK);
       if (list.length > 2) {
-        // 得失ゲーム率・得失点率でも並ぶ2者は直接対決
+        // 率でも並ぶ2者は直接対決
         for (let i = 0; i + 1 < sorted.length; i++) {
           const x = sorted[i], y = sorted[i + 1];
-          if (ratio(x.gw, x.gl) === ratio(y.gw, y.gl) && ratio(x.pw, x.pl) === ratio(y.pw, y.pl) && h2h.get(y.id + '>' + x.id)) { sorted[i] = y; sorted[i + 1] = x; }
+          if (cmpK(x, y) === 0 && h2h.get(y.id + '>' + x.id)) { sorted[i] = y; sorted[i + 1] = x; }
         }
       }
       return sorted;
@@ -482,6 +536,8 @@
     const evOrder = new Map(state.events.map((e, i) => [e.id, i]));
     const allowed = new Map(state.events.map((e) => [e.id, BT.parseCourts(e.courts, C)]));
     const memo = new Map();
+    const durOf = new Map(state.events.map((e) => [e.id, +e.minutes > 0 ? +e.minutes : D]));
+    const dur = (m) => durOf.get(m.eventId) || D;
 
     const fixed = [], todo = [];
     state.matches.forEach((m) => {
@@ -493,7 +549,7 @@
     const lastEnd = new Map(); // player -> end
     const courtFree = new Array(C + 1).fill(start);
     fixed.forEach((m) => {
-      const s = m.time ?? start; const e = s + D;
+      const s = m.time ?? start; const e = s + dur(m);
       end.set(m.id, e);
       BT.candidatePlayers(c, m, memo).forEach((p) => lastEnd.set(p, Math.max(lastEnd.get(p) || 0, e)));
       if (m.court && m.court <= C) courtFree[m.court] = Math.max(courtFree[m.court], m.result ? start : e);
@@ -534,7 +590,7 @@
       }
       if (best) {
         best.court = court; best.time = ct;
-        const e = ct + D;
+        const e = ct + dur(best);
         end.set(best.id, e);
         players.get(best.id).forEach((p) => lastEnd.set(p, e));
         courtFree[court] = e;
@@ -568,7 +624,7 @@
     return {
       tournament: t,
       events: state.events,
-      entries: state.entries.map((e) => ({ id: e.id, eventId: e.eventId, seed: e.seed, team: e.team, withdrawn: e.withdrawn, players: (e.players || []).map((p) => ({ name: p.name, team: p.team })) })),
+      entries: state.entries.map((e) => ({ id: e.id, eventId: e.eventId, seed: e.seed, team: e.team, teamName: e.teamName, withdrawn: e.withdrawn, players: (e.players || []).map((p) => ({ name: p.name, team: p.team })) })),
       draws: state.draws,
       matches: state.matches,
       publishedAt: Date.now(),

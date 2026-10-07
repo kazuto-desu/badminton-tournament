@@ -24,42 +24,86 @@
     return (hasL ? '決勝T ' : '') + BT.roundName(maxR, m.round, m.third);
   };
 
-  R.fmtDate = (s) => {
+  // 日付表示（和暦: 令和7年8月17日（日） / 西暦: 2025年8月17日（日））
+  R.fmtDate = (s, era) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
     if (!m) return s || '';
-    const d = new Date(+m[1], +m[2] - 1, +m[3]);
-    return `${+m[1]}年${+m[2]}月${+m[3]}日（${'日月火水木金土'[d.getDay()]}）`;
+    const y = +m[1], d = new Date(y, +m[2] - 1, +m[3]);
+    let ys = `${y}年`;
+    if (era !== 'seireki' && d >= new Date(2019, 4, 1)) ys = `令和${y - 2018 === 1 ? '元' : y - 2018}年`;
+    return `${ys}${+m[2]}月${+m[3]}日（${'日月火水木金土'[d.getDay()]}）`;
+  };
+
+  R.eventSummary = (ev) => {
+    let fm = BT.FORMATS[ev.format];
+    if (ev.format !== 'tournament' && +ev.groupSize > 1) fm += `（1組${ev.groupSize}程度${ev.format === 'league_tournament' ? `・各組上位${ev.advance || 1}位が決勝T` : ''}）`;
+    const rule = BT.isTeamEv(ev)
+      ? `${BT.rubberList(ev).join('・')}（各${ev.games == 1 ? '1ゲーム' : (ev.games || 3) + 'ゲームマッチ'}）`
+      : `${ev.games == 1 ? '1ゲーム' : (ev.games || 3) + 'ゲームマッチ'}・${ev.points || 21}点`;
+    return { fm, rule };
+  };
+
+  // 1行目を本文、2行目以降を字下げの補足として表示
+  const lines = (text, boldFirst) => {
+    const ls = String(text || '').split('\n').filter((l, i) => i === 0 || l.trim());
+    if (!ls.length || !ls[0].trim() && ls.length === 1) return '';
+    return ls.map((l, i) => i === 0 ? `<div class="g-main">${boldFirst ? `<b>${esc(l)}</b>` : esc(l)}</div>` : `<div class="g-sub">${esc(l)}</div>`).join('');
   };
 
   // ---------- 大会要項 ----------
   R.guide = (state) => {
-    const t = Object.assign({}, state.tournament);
-    t.date = R.fmtDate(t.date); t.deadline = R.fmtDate(t.deadline);
+    const t = state.tournament;
+    const fd = (s) => R.fmtDate(s, t.era);
     const items = [];
-    const add = (title, body) => { if (body && String(body).trim()) items.push([title, body]); };
-    add('大会名', esc(t.name));
-    add('主催', esc(t.organizer));
-    add('主管', esc(t.host));
-    add('後援・協賛', esc(t.sponsor));
-    if (t.date) add('期日', esc(t.date) + (t.startTime ? `　${esc(t.startTime)} 試合開始予定` : ''));
-    add('会場', esc(t.venue) + (t.address ? `<br><span class="muted">${esc(t.address)}</span>` : ''));
-    if (state.events.length) {
-      add('種目', '<table class="tbl guide-ev"><thead><tr><th>種目</th><th>試合方法</th><th>定員</th><th>参加料</th></tr></thead><tbody>' + state.events.map((ev) => {
-        let fm = BT.FORMATS[ev.format];
-        if (ev.format !== 'tournament' && +ev.groupSize > 1) fm += `（1組${ev.groupSize}程度${ev.format === 'league_tournament' ? `・各組上位${ev.advance || 1}位が決勝T` : ''}）`;
-        return `<tr><td>${esc(ev.name)}<span class="muted">（${BT.TYPES[ev.type] || ''}）</span>${ev.note ? `<div class="muted small">${esc(ev.note)}</div>` : ''}</td><td>${esc(fm)}<div class="muted small">${ev.games == 1 ? '1ゲーム' : (ev.games || 3) + 'ゲームマッチ'}・${esc(ev.points || 21)}点${ev.thirdPlace ? '・3位決定戦あり' : ''}</div></td><td>${ev.capacity ? esc(ev.capacity) : '—'}</td><td>${esc(ev.fee || '—')}</td></tr>`;
-      }).join('') + '</tbody></table>');
+    const add = (title, body) => { if (body && String(body).replace(/<[^>]+>/g, '').trim()) items.push([title, body]); };
+
+    add('主催', lines(t.organizer));
+    add('主管', lines(t.host));
+    add('後援', lines(t.sponsor));
+    if (t.date) {
+      const time = t.receptionTime ? `受付　${t.receptionTime}～` : t.startTime ? `試合開始　${t.startTime}～` : '';
+      add('日時', `<div class="g-main">${esc(fd(t.date))}<span class="g-gap"></span>${esc(time)}</div>`);
     }
-    add('試合方法・競技規則', esc(t.method).replace(/\n/g, '<br>'));
-    add('使用球', esc(t.shuttle));
-    add('参加資格', esc(t.eligibility).replace(/\n/g, '<br>'));
-    const ap = [];
-    if (t.deadline) ap.push(`申込締切：<b>${esc(t.deadline)}</b>`);
-    if (t.contactName || t.contactEmail || t.contactTel) ap.push(`申込・問合せ先：${esc(t.contactName)} ${t.contactEmail ? '／ ' + esc(t.contactEmail) : ''} ${t.contactTel ? '／ ' + esc(t.contactTel) : ''}`);
-    add('申込方法', ap.join('<br>'));
-    (t.extraSections || []).forEach((s) => add(esc(s.title), esc(s.body).replace(/\n/g, '<br>')));
-    add('その他', esc(t.notes).replace(/\n/g, '<br>'));
-    return `<article class="guide-doc"><h1>${esc(t.name || '（大会名未設定）')}</h1><p class="center">大 会 要 項</p><ol class="guide-list">${items.map(([h, b]) => `<li><div class="gh">${h}</div><div class="gb">${b}</div></li>`).join('')}</ol></article>`;
+    add('場所', lines(t.venue + (t.address ? `\n${t.address}` : '')));
+
+    let evText = t.eventsText;
+    if (!String(evText || '').trim()) evText = state.events.map((e) => e.name).filter(Boolean).join('　・　');
+    let evHtml = lines(evText);
+    if (t.showEventTable && state.events.length) {
+      evHtml += '<table class="tbl guide-ev"><thead><tr><th>種目</th><th>試合方法</th><th>定員</th><th>参加料</th></tr></thead><tbody>' + state.events.map((ev) => {
+        const s = R.eventSummary(ev);
+        return `<tr><td>${esc(ev.name)}${ev.note ? `<div class="small">${esc(ev.note)}</div>` : ''}</td><td>${esc(s.fm)}<div class="small">${esc(s.rule)}${ev.thirdPlace ? '・3位決定戦あり' : ''}</div></td><td>${ev.capacity ? esc(ev.capacity) : '—'}</td><td>${esc(ev.fee || '—')}</td></tr>`;
+      }).join('') + '</tbody></table>';
+    }
+    add('種目', evHtml);
+    add('参加資格', lines(t.eligibility));
+    add('試合方法', lines(t.method));
+    add('使用球', lines(t.shuttle));
+
+    let ap = lines(t.applyMethod);
+    if (t.contactName || t.contactTel || t.contactEmail || t.contactLine) {
+      ap += `<div class="g-main">申し込み先</div><div class="g-box"><div class="g-box-txt">
+        <div class="g-box-row"><span class="g-box-name">${esc(t.contactName)}</span>${t.contactTel ? `<span>TEL：${esc(t.contactTel)}</span>` : ''}${t.contactEmail ? `<span>E-Mail：${esc(t.contactEmail)}</span>` : ''}</div>
+        ${t.contactLine ? `<div class="g-box-row"><span class="g-box-name"></span><span>LINE：${esc(t.contactLine)}</span></div>` : ''}</div>
+        ${t.contactQr ? `<img class="g-qr" src="${esc(t.contactQr)}" alt="QRコード">` : ''}</div>`;
+    }
+    add('申し込み', ap);
+    if (t.deadline) add('申込期限', `<div class="g-main g-strong">${esc(fd(t.deadline))}</div>${t.deadlineNote ? `<div class="g-main g-strong">${esc(t.deadlineNote)}</div>` : ''}`);
+
+    let fee = t.fee;
+    if (!String(fee || '').trim()) fee = state.events.filter((e) => e.fee).map((e) => `${e.name}　${e.fee}`).join('\n');
+    // 「・」「※」で始まる行は字下げの補足、それ以外は太字
+    add('参加料等', String(fee || '').split('\n').filter((l) => l.trim()).map((l, i) => (i > 0 && /^[・※]/.test(l) ? `<div class="g-sub">${esc(l)}</div>` : `<div class="g-main g-strong">${esc(l)}</div>`)).join(''));
+    (t.extraSections || []).forEach((s) => add(s.title, lines(s.body)));
+    add('その他', String(t.notes || '').split('\n').filter((l) => l.trim()).map((l) => `<div class="${/^[・※]/.test(l) ? 'g-sub' : 'g-main'}">${esc(l)}</div>`).join(''));
+
+    const from = [t.issueDate, t.issuer || t.organizer, t.representative].filter((x) => String(x || '').trim());
+    return `<article class="guide-doc">
+      ${t.addressee || from.length ? `<div class="g-head"><div class="g-to">${esc(t.addressee)}</div><div class="g-from">${from.map((x) => `<div>${esc(x)}</div>`).join('')}</div></div>` : ''}
+      <h1 class="g-title">${esc(t.name || '（大会名未設定）')}${t.titleSuffix ? `　${esc(t.titleSuffix)}` : ''}</h1>
+      <p class="g-ki">記</p>
+      <ol class="g-items">${items.map(([h, b], i) => `<li><span class="g-no">${i + 1}</span><span class="g-lb">${esc(h)}</span><div class="g-bd">${b}</div></li>`).join('')}</ol>
+    </article>`;
   };
 
   // ---------- トーナメント表（SVG） ----------
@@ -138,8 +182,9 @@
     const g = draw.groups.find((x) => x.name === group);
     const ids = g.entryIds.filter((id) => c.entry.has(id));
     const rowOf = new Map(st.rows.map((r) => [r.id, r]));
+    const team = BT.isTeamEv(ev);
     const find = (x, y) => st.matches.find((m) => (m.a.e === x && m.b.e === y) || (m.a.e === y && m.b.e === x));
-    let h = `<table class="tbl league"><thead><tr><th class="lg-name">${esc(group)}組</th>${ids.map((id, i) => `<th class="lg-c">${i + 1}</th>`).join('')}<th>勝-敗</th><th>得失G</th><th>得失点</th><th>順位</th></tr></thead><tbody>`;
+    let h = `<table class="tbl league"><thead><tr><th class="lg-name">${esc(group)}組</th>${ids.map((id, i) => `<th class="lg-c">${i + 1}</th>`).join('')}<th>勝-敗</th>${team ? '<th>得失マッチ</th>' : ''}<th>得失G</th><th>得失点</th><th>順位</th></tr></thead><tbody>`;
     ids.forEach((x, i) => {
       const en = c.entry.get(x);
       h += `<tr><th class="lg-name"><span class="lg-i">${i + 1}</span>${esc(BT.entryNames(en))}<div class="muted small">${esc(BT.entryTeam(en))}</div></th>`;
@@ -157,7 +202,7 @@
         h += `<td class="lg-cell" data-mid="${m.id}">${cell}</td>`;
       });
       const r = rowOf.get(x) || {};
-      h += `<td>${r.win || 0}-${r.lose || 0}</td><td>${(r.gw || 0)}-${(r.gl || 0)}</td><td>${(r.pw || 0)}-${(r.pl || 0)}</td><td class="lg-rank">${st.complete || r.played ? (r.rank || '') : ''}</td></tr>`;
+      h += `<td>${r.win || 0}-${r.lose || 0}</td>${team ? `<td>${r.mw || 0}-${r.ml || 0}</td>` : ''}<td>${(r.gw || 0)}-${(r.gl || 0)}</td><td>${(r.pw || 0)}-${(r.pl || 0)}</td><td class="lg-rank">${st.complete || r.played ? (r.rank || '') : ''}</td></tr>`;
     });
     h += '</tbody></table>';
     if (opts.showOverride && st.complete) h += `<div class="small muted">順位：${st.rows.map((r) => `${r.rank}位 ${esc(BT.entryNames(c.entry.get(r.id)))}`).join('　')}</div>`;

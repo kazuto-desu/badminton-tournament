@@ -77,6 +77,9 @@ function apply_(entry) {
   }
   const players = (entry.players || []).filter(function (p) { return p && String(p.name || '').trim(); });
   if (!players.length) return { ok: false, error: '選手名を入力してください' };
+  const isTeam = ev.type === 'team';
+  if (isTeam && !String(entry.teamName || '').trim()) return { ok: false, error: 'チーム名を入力してください' };
+  if (isTeam && ev.teamMin && players.length < +ev.teamMin) return { ok: false, error: 'メンバーは' + ev.teamMin + '名以上必要です' };
   const sh = sheet_(SHEET_ENTRIES);
   const rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 13).getValues() : [];
   if (ev.capacity && +ev.capacity > 0) {
@@ -86,13 +89,14 @@ function apply_(entry) {
   const id = 'w' + new Date().getTime().toString(36) + Math.random().toString(36).slice(2, 6);
   const clean = {
     id: id, eventId: ev.id,
-    players: players.slice(0, 4).map(function (p) { return { name: s_(p.name), kana: s_(p.kana), team: s_(p.team) }; }),
-    team: s_(entry.team), contactName: s_(entry.contactName), contactEmail: s_(entry.contactEmail), contactTel: s_(entry.contactTel),
+    players: players.slice(0, 20).map(function (p) { return { name: s_(p.name), kana: s_(p.kana), team: s_(p.team) }; }),
+    team: s_(entry.team), teamName: s_(entry.teamName), contactName: s_(entry.contactName), contactEmail: s_(entry.contactEmail), contactTel: s_(entry.contactTel),
     memo: s_(entry.memo), createdAt: new Date().getTime(), source: 'web'
   };
   const p = clean.players;
   sh.appendRow([new Date(), id, ev.id, ev.name,
-    p[0] ? p[0].name : '', p[0] ? p[0].team : '', p[1] ? p[1].name : '', p[1] ? p[1].team : '',
+    isTeam ? clean.teamName : (p[0] ? p[0].name : ''), isTeam ? clean.team : (p[0] ? p[0].team : ''),
+    isTeam ? p.map(function (x) { return x.name; }).join('、') : (p[1] ? p[1].name : ''), isTeam ? '' : (p[1] ? p[1].team : ''),
     clean.contactName, clean.contactEmail, clean.contactTel, clean.memo, JSON.stringify(clean)]);
   return { ok: true, id: id };
 }
@@ -113,7 +117,7 @@ function sheet_(name) {
   if (!sh) {
     sh = ss.insertSheet(name);
     if (name === SHEET_ENTRIES) {
-      sh.appendRow(['受付日時', 'ID', '種目ID', '種目', '選手1', '所属1', '選手2', '所属2', '代表者', 'メール', '電話', '備考', 'data(JSON)']);
+      sh.appendRow(['受付日時', 'ID', '種目ID', '種目', '選手1（団体はチーム名）', '所属1', '選手2（団体はメンバー）', '所属2', '代表者', 'メール', '電話', '備考', 'data(JSON)']);
       sh.setFrozenRows(1);
     }
     if (name === SHEET_STORE) sh.hideSheet();

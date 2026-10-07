@@ -20,7 +20,12 @@
 
   function playersHTML(ev) {
     const n = BT.playerCount(ev);
-    if (ev.type === 'team') return `<div class="grid"><label class="f"><span>チーム名 *</span><input name="p0name" required></label><label class="f"><span>所属</span><input name="p0team"></label></div>`;
+    if (BT.isTeamEv(ev)) {
+      const min = Math.max(1, +ev.teamMin || 1);
+      return `<h4>チーム</h4><div class="grid"><label class="f"><span>チーム名 *</span><input name="teamName" required placeholder="○○クラブA"></label><label class="f"><span>所属 *</span><input name="team" required placeholder="○○クラブ"></label></div>
+        <h4>メンバー（${min}〜${n}名）</h4><p class="small muted">1試合の内訳：${esc(BT.rubberList(ev).join('・'))}</p>
+        <div class="grid">${Array.from({ length: n }, (_, i) => `<label class="f"><span>メンバー${i + 1}${i < min ? ' *' : ''}</span><input name="p${i}name"${i < min ? ' required' : ''} autocomplete="off"></label>`).join('')}</div>`;
+    }
     return Array.from({ length: n }, (_, i) => `<h4>${n > 1 ? `選手${i + 1}` : '選手'}</h4><div class="grid">
       <label class="f"><span>氏名 *</span><input name="p${i}name" required autocomplete="off" placeholder="山田 太郎"></label>
       <label class="f"><span>フリガナ</span><input name="p${i}kana" autocomplete="off" placeholder="ヤマダ タロウ"></label>
@@ -60,17 +65,19 @@
       const ev = evs.find((x) => x.id === sel.value);
       if (!ev) return;
       const fd = new FormData(f);
-      const n = ev.type === 'team' ? 1 : BT.playerCount(ev);
+      const n = BT.playerCount(ev);
+      const team = BT.isTeamEv(ev);
       const entry = {
         eventId: ev.id,
-        players: Array.from({ length: n }, (_, i) => ({ name: fd.get(`p${i}name`), kana: fd.get(`p${i}kana`) || '', team: fd.get(`p${i}team`) || '' })),
+        teamName: team ? fd.get('teamName') : '', team: team ? fd.get('team') : '',
+        players: Array.from({ length: n }, (_, i) => ({ name: fd.get(`p${i}name`) || '', kana: fd.get(`p${i}kana`) || '', team: team ? fd.get('team') : (fd.get(`p${i}team`) || '') })).filter((p) => p.name.trim()),
         contactName: fd.get('contactName'), contactEmail: fd.get('contactEmail'), contactTel: fd.get('contactTel'), memo: fd.get('memo'),
       };
       const btn = document.getElementById('submit');
       btn.disabled = true; btn.textContent = '送信中…';
       try {
         const r = await BTAPI.apply(api, entry);
-        app.innerHTML = `<div class="card"><h3>✅ 申込を受け付けました</h3><p>種目：<b>${esc(ev.name)}</b><br>${entry.players.map((p) => esc(p.name) + (p.team ? `（${esc(p.team)}）` : '')).join('・')}</p><p class="small muted">受付番号：<code>${esc(r.id)}</code>　この画面を保存またはスクリーンショットしておいてください。</p><p><a href="${esc(location.href)}">続けて別の申込をする</a></p></div>`;
+        app.innerHTML = `<div class="card"><h3>✅ 申込を受け付けました</h3><p>種目：<b>${esc(ev.name)}</b><br>${entry.teamName ? `<b>${esc(entry.teamName)}</b>（${esc(entry.team)}）<br>` : ''}${entry.players.map((p) => esc(p.name) + (p.team ? `（${esc(p.team)}）` : '')).join('・')}</p><p class="small muted">受付番号：<code>${esc(r.id)}</code>　この画面を保存またはスクリーンショットしておいてください。</p><p><a href="${esc(location.href)}">続けて別の申込をする</a></p></div>`;
         window.scrollTo(0, 0);
       } catch (err) {
         document.getElementById('msg').innerHTML = `<div class="notice err">${esc(err.message)}</div>`;

@@ -104,51 +104,81 @@
     const sc = window.scrollY;
     const v = VIEWS[ui.tab] || VIEWS.guide;
     main.innerHTML = v();
+    fitGuide();
     window.scrollTo(0, sc);
     saveUI();
   }
 
   const VIEWS = {};
 
+  // 要項プレビューをA4幅のまま縮小表示（印刷と同じ改行位置になる）
+  function fitGuide() {
+    const box = $('#guidePreview'); if (!box) return;
+    const doc = $('.guide-doc', box); if (!doc) return;
+    doc.style.zoom = Math.min(1, box.clientWidth / 794);
+  }
+  window.addEventListener('resize', fitGuide);
+
   // ===== 1. 大会要項 =====
   VIEWS.guide = () => {
     const t = 'tournament.';
-    const ex = S.tournament.extraSections || [];
-    const welcome = !S.events.length && !S.tournament.name ? `<div class="help"><b>はじめに：</b>大会情報 → 種目 → 申込 → 組み合わせ → タイムテーブル → 進行・結果入力 の順に進めます。まず操作を試したい場合は <button class="btn sm" data-act="demo">デモデータを読み込む</button></div>` : '';
-    return `${welcome}<div class="split"><div class="card"><h3>大会情報</h3><div class="grid">
-      ${field('大会名', t + 'name', { cls: 'wide', placeholder: '第1回 ○○市バドミントン大会' })}
-      ${field('期日', t + 'date', { type: 'date' })}
-      ${field('試合開始時刻', t + 'startTime', { type: 'time' })}
-      ${field('会場', t + 'venue', { placeholder: '○○市総合体育館' })}
-      ${field('会場住所', t + 'address')}
-      ${field('主催', t + 'organizer')}
+    const T = S.tournament;
+    const ex = T.extraSections || [];
+    const welcome = !S.events.length && !T.name ? `<div class="help"><b>はじめに：</b>大会情報 → 種目 → 申込 → 組み合わせ → タイムテーブル → 進行・結果入力 の順に進めます。まず操作を試したい場合は <button class="btn sm" data-act="demo">デモデータを読み込む</button></div>` : '';
+    const sub = '2行目以降は字下げして表示されます（「・」で始めると補足の箇条書きになります）';
+    return `${welcome}<div class="split"><div class="card"><h3>文書の体裁</h3><div class="grid">
+      ${field('宛名', t + 'addressee', { placeholder: '関係者各位' })}
+      ${field('発行日', t + 'issueDate', { placeholder: '令和7年6月吉日' })}
+      ${field('発行者（団体名）', t + 'issuer', { placeholder: '空欄なら主催者名' })}
+      ${field('代表者', t + 'representative', { placeholder: '会　長　吉野　大二' })}
+      ${field('大会名', t + 'name', { cls: 'wide', placeholder: '日出町協会長杯バドミントン大会' })}
+      ${field('表題の後ろ', t + 'titleSuffix', { placeholder: '実施要項' })}
+      ${field('日付の表記', t + 'era', { type: 'select', options: [['wareki', '和暦（令和7年8月17日）'], ['seireki', '西暦（2025年8月17日）']] })}
+      </div>
+      <h3 style="margin-top:20px">要項の項目</h3><div class="grid">
+      ${field('主催', t + 'organizer', { placeholder: '日出町バドミントン協会' })}
       ${field('主管', t + 'host')}
-      ${field('後援・協賛', t + 'sponsor', { cls: 'wide' })}
-      ${field('申込締切', t + 'deadline', { type: 'date' })}
-      ${field('使用球', t + 'shuttle', { placeholder: '日本バドミントン協会検定球' })}
-      ${field('申込担当者', t + 'contactName')}
-      ${field('メール', t + 'contactEmail', { type: 'email' })}
-      ${field('電話', t + 'contactTel')}
-      ${field('試合方法・競技規則', t + 'method', { type: 'textarea', cls: 'wide', rows: 4 })}
-      <div class="wide row"><button class="btn sm" data-act="methodTemplate">競技規則の文例を挿入</button></div>
-      ${field('参加資格', t + 'eligibility', { type: 'textarea', cls: 'wide' })}
-      ${field('その他', t + 'notes', { type: 'textarea', cls: 'wide', rows: 4 })}
+      ${field('後援', t + 'sponsor', { cls: 'wide' })}
+      ${field('期日', t + 'date', { type: 'date' })}
+      ${field('受付時刻', t + 'receptionTime', { placeholder: '8:40' })}
+      ${field('試合開始時刻（タイムテーブル用）', t + 'startTime', { type: 'time' })}
+      ${field('場所', t + 'venue', { placeholder: '日出町町営体育館' })}
+      ${field('場所の住所', t + 'address')}
+      ${field('種目', t + 'eventsText', { type: 'textarea', cls: 'wide', rows: 3, placeholder: '空欄なら「種目」タブの種目名を並べます\n例）男女ダブルス　A級・B級・C級・D級\n・男女混成チームは男子の部に出場してください。', hint: sub })}
+      ${field('種目ごとの一覧表（試合方法・定員・参加料）も載せる', t + 'showEventTable', { type: 'checkbox', cls: 'wide' })}
+      ${field('参加資格', t + 'eligibility', { type: 'textarea', cls: 'wide', rows: 2, placeholder: '中学生以上のバドミントン愛好家' })}
+      ${field('試合方法', t + 'method', { type: 'textarea', cls: 'wide', rows: 3, placeholder: '予選はリーグ方式、決勝はトーナメント方式とします。\n・参加チーム数により変更する事もあります。', hint: sub })}
+      <div class="wide row"><button class="btn sm" data-act="methodTemplate">種目設定から試合方法の文を作る</button></div>
+      ${field('使用球', t + 'shuttle')}
+      </div>
+      <h3 style="margin-top:20px">申し込み</h3><div class="grid">
+      ${field('申し込み方法', t + 'applyMethod', { type: 'textarea', cls: 'wide', rows: 2 })}
+      ${field('申し込み先（氏名）', t + 'contactName')}
+      ${field('TEL', t + 'contactTel')}
+      ${field('E-Mail', t + 'contactEmail', { type: 'email' })}
+      ${field('LINE（URL）', t + 'contactLine', { placeholder: 'https://lin.ee/...' })}
+      <label class="f"><span>QRコード画像</span><div class="row">${T.contactQr ? `<img class="qr-prev" src="${esc(T.contactQr)}" alt=""><button class="btn sm danger" data-act="qrDel">削除</button>` : ''}<label class="btn sm">画像を選ぶ<input type="file" accept="image/*" id="qrFile" hidden></label></div></label>
+      ${field('申込期限', t + 'deadline', { type: 'date' })}
+      ${field('申込期限の注意書き', t + 'deadlineNote', { cls: 'wide' })}
+      ${field('参加料等', t + 'fee', { type: 'textarea', cls: 'wide', rows: 3, placeholder: '1人　2,000円\n・当日受付で徴収致します。', hint: '空欄なら「種目」タブの参加料を並べます。「・」「※」で始まる行は補足として表示' })}
+      ${field('その他', t + 'notes', { type: 'textarea', cls: 'wide', rows: 3 })}
+      <div class="wide row"><button class="btn sm" data-act="notesTemplate">その他の文例を挿入</button></div>
     </div>
-    <h4>追加項目</h4>
+    <h4>追加項目（「その他」の前に入ります）</h4>
     ${ex.map((s, i) => `<div class="grid" style="margin-bottom:8px">${field('見出し', `tournament.extraSections.${i}.title`)}${field('内容', `tournament.extraSections.${i}.body`, { type: 'textarea', cls: 'wide' })}<div class="wide"><button class="btn sm danger" data-act="delSection" data-i="${i}">この項目を削除</button></div></div>`).join('')}
-    <button class="btn sm" data-act="addSection">＋ 項目を追加（表彰、注意事項など）</button>
-    <p class="small muted">種目・参加料は「種目」タブで設定すると要項に自動で反映されます。</p>
+    <button class="btn sm" data-act="addSection">＋ 項目を追加（表彰、服装、注意事項など）</button>
     </div>
     <div><div class="row no-print" style="margin-bottom:8px"><b>プレビュー</b><span class="spacer"></span><button class="btn primary" data-act="printGuide">印刷 / PDF保存</button></div><div id="guidePreview">${BTR.guide(S)}</div></div></div>`;
   };
 
   // ===== 2. 種目 =====
-  const PRESETS = ['一般男子シングルス', '一般女子シングルス', '一般男子ダブルス', '一般女子ダブルス', '混合ダブルス', '男子ダブルス1部', '男子ダブルス2部', '女子ダブルス1部', '女子ダブルス2部', '小学生男子シングルス', '小学生女子シングルス', '中学生男子ダブルス', '中学生女子ダブルス', '高校生男子ダブルス', '高校生女子ダブルス', 'シニア男子ダブルス(50歳以上)', 'シニア女子ダブルス(50歳以上)'];
+  const PRESETS = ['一般男子シングルス', '一般女子シングルス', '一般男子ダブルス', '一般女子ダブルス', '混合ダブルス', '男子ダブルス1部', '男子ダブルス2部', '女子ダブルス1部', '女子ダブルス2部', '小学生男子シングルス', '小学生女子シングルス', '中学生男子ダブルス', '中学生女子ダブルス', '高校生男子ダブルス', '高校生女子ダブルス', 'シニア男子ダブルス(50歳以上)', 'シニア女子ダブルス(50歳以上)', '男子団体戦', '女子団体戦', '混合団体戦'];
   VIEWS.events = () => {
     const rows = S.events.map((ev, i) => {
       const p = `events.#${ev.id}.`;
       const n = S.entries.filter((e) => e.eventId === ev.id && !e.withdrawn).length;
-      return `<div class="card"><div class="row"><h3 style="margin:0"><span class="evdot" style="background:${BTR.evColor(BT.ctx(S), ev.id)}"></span>${esc(ev.name || '（種目名未設定）')}</h3><span class="pill">${n}組</span><span class="spacer"></span>
+      const team = BT.isTeamEv(ev);
+      return `<div class="card"><div class="row"><h3 style="margin:0"><span class="evdot" style="background:${BTR.evColor(BT.ctx(S), ev.id)}"></span>${esc(ev.name || '（種目名未設定）')}</h3><span class="pill">${n}${team ? 'チーム' : '組'}</span><span class="spacer"></span>
         <button class="btn sm" data-act="evUp" data-id="${ev.id}"${i === 0 ? ' disabled' : ''}>↑</button><button class="btn sm" data-act="evDown" data-id="${ev.id}"${i === S.events.length - 1 ? ' disabled' : ''}>↓</button><button class="btn sm danger" data-act="evDel" data-id="${ev.id}">削除</button></div>
         <div class="grid" style="margin-top:10px">
         ${field('種目名', p + 'name', { placeholder: '一般男子ダブルス' })}
@@ -156,16 +186,20 @@
         ${field('試合形式', p + 'format', { type: 'select', options: Object.entries(BT.FORMATS), rerender: true })}
         ${ev.format !== 'tournament' ? field(ev.format === 'league' ? '1グループの人数（空欄=全員で1リーグ）' : '1グループの人数', p + 'groupSize', { type: 'number', min: 2 }) : ''}
         ${ev.format === 'league_tournament' ? field('各グループの決勝T進出数', p + 'advance', { type: 'number', min: 1 }) : ''}
-        ${field('ゲーム数', p + 'games', { type: 'select', options: [['1', '1ゲーム'], ['3', '3ゲームマッチ'], ['5', '5ゲームマッチ']] })}
+        ${team ? field('1対戦の内訳（カンマ区切り）', p + 'rubbers', { cls: 'wide', placeholder: '第1ダブルス,第2ダブルス,シングルス', rerender: true }) : ''}
+        ${team ? field('メンバー最少人数', p + 'teamMin', { type: 'number', min: 1 }) : ''}
+        ${team ? field('メンバー最大人数', p + 'teamMax', { type: 'number', min: 1, rerender: true }) : ''}
+        ${field(team ? '各試合のゲーム数' : 'ゲーム数', p + 'games', { type: 'select', options: [['1', '1ゲーム'], ['3', '3ゲームマッチ'], ['5', '5ゲームマッチ']] })}
         ${field('点数', p + 'points', { type: 'select', options: [['21', '21点'], ['15', '15点'], ['11', '11点'], ['30', '30点']] })}
         ${field('参加料', p + 'fee', { placeholder: '1組 3,000円' })}
-        ${field('定員（組）', p + 'capacity', { type: 'number', min: 0 })}
+        ${field(team ? '定員（チーム）' : '定員（組）', p + 'capacity', { type: 'number', min: 0 })}
+        ${field(team ? '1対戦の目安（分）' : '1試合の目安（分・空欄=全体設定）', p + 'minutes', { type: 'number', min: 1, placeholder: team ? '60' : '' })}
         ${field('使用コート（空欄=全コート）', p + 'courts', { placeholder: '例: 1-4' })}
         ${field('備考（要項に表示）', p + 'note', { placeholder: '例: 年齢合計100歳以上' })}
         ${ev.format !== 'league' ? field('3位決定戦を行う', p + 'thirdPlace', { type: 'checkbox' }) : ''}
         </div></div>`;
     }).join('');
-    return `<div class="help">クラス（種目）ごとに試合形式を選べます。同じ大会の中でトーナメント・リーグ・予選リーグ→決勝トーナメントを混在できます。</div>
+    return `<div class="help">クラス（種目）ごとに試合形式を選べます。同じ大会の中でトーナメント・リーグ・予選リーグ→決勝トーナメントを混在できます。種別を「団体戦」にすると、チーム単位の申込と、1対戦の内訳（例：第1ダブルス・第2ダブルス・シングルス）ごとの結果入力になります。</div>
       ${rows || '<p class="muted">種目がまだありません。</p>'}
       <div class="card row"><button class="btn primary" data-act="evAdd">＋ 種目を追加</button><span class="muted small">よく使う種目：</span><select id="presetSel"><option value="">選択して追加…</option>${PRESETS.map((p) => `<option>${esc(p)}</option>`).join('')}</select></div>`;
   };
@@ -189,20 +223,22 @@
     evs.forEach((ev) => {
       const list = S.entries.filter((e) => e.eventId === ev.id);
       const pc = BT.playerCount(ev);
-      const teamEv = ev.type === 'team';
-      h += `<section class="card"><div class="row"><h3 style="margin:0"><span class="evdot" style="background:${BTR.evColor(BT.ctx(S), ev.id)}"></span>${esc(ev.name)}</h3><span class="pill">${list.filter((e) => !e.withdrawn).length}${ev.capacity ? ' / ' + esc(ev.capacity) : ''}組</span><span class="spacer"></span><button class="btn sm primary" data-act="entryAdd" data-ev="${ev.id}">＋ 追加</button></div>
+      const teamEv = BT.isTeamEv(ev);
+      h += `<section class="card"><div class="row"><h3 style="margin:0"><span class="evdot" style="background:${BTR.evColor(BT.ctx(S), ev.id)}"></span>${esc(ev.name)}</h3><span class="pill">${list.filter((e) => !e.withdrawn).length}${ev.capacity ? ' / ' + esc(ev.capacity) : ''}${teamEv ? 'チーム' : '組'}</span><span class="spacer"></span><button class="btn sm primary" data-act="entryAdd" data-ev="${ev.id}">＋ 追加</button></div>
       <div class="tbl-scroll" style="margin-top:8px"><table class="tbl"><thead><tr><th>#</th><th title="数字を入れるとシード（1が第1シード）">シード</th>
-      ${teamEv ? '<th>チーム名</th><th>所属</th>' : Array.from({ length: pc }, (_, i) => `<th>選手${pc > 1 ? i + 1 : ''} 氏名</th><th>所属</th>`).join('')}
-      <th>代表者</th><th>連絡先</th><th>受付</th><th>棄権</th><th></th></tr></thead><tbody>
+      ${teamEv ? '<th>チーム名</th><th>所属</th><th>メンバー（改行または「、」区切り）</th><th>人数</th>' : Array.from({ length: pc }, (_, i) => `<th>選手${pc > 1 ? i + 1 : ''} 氏名</th><th>所属</th>`).join('')}
+      <th>${teamEv ? '監督・代表者' : '代表者'}</th><th>連絡先</th><th>受付</th><th>棄権</th><th></th></tr></thead><tbody>
       ${list.map((en, i) => {
         const p = `entries.#${en.id}.`;
-        const cells = Array.from({ length: pc }, (_, k) => `<td><input data-bind="${p}players.${k}.name" value="${esc((en.players[k] || {}).name)}"></td><td><input data-bind="${p}players.${k}.team" value="${esc((en.players[k] || {}).team)}"></td>`).join('');
+        const nm = BT.memberNames(en).length;
+        const warn = teamEv && (nm < (+ev.teamMin || 1) || nm > (+ev.teamMax || 99));
+        const cells = teamEv ? `<td><input data-bind="${p}teamName" value="${esc(en.teamName)}" placeholder="○○クラブA"></td><td><input data-bind="${p}team" value="${esc(en.team)}"></td><td><textarea class="members" rows="2" data-members="${en.id}">${esc(BT.memberNames(en).join('、'))}</textarea></td><td class="num${warn ? ' w' : ''}" title="${esc(`${ev.teamMin || 1}〜${ev.teamMax || ''}人`)}">${nm}</td>` : Array.from({ length: pc }, (_, k) => `<td><input data-bind="${p}players.${k}.name" value="${esc((en.players[k] || {}).name)}"></td><td><input data-bind="${p}players.${k}.team" value="${esc((en.players[k] || {}).team)}"></td>`).join('');
         return `<tr class="${en.withdrawn ? 'withdrawn' : ''}"><td class="num">${i + 1}</td><td style="width:62px"><input type="number" min="0" data-bind="${p}seed" value="${esc(en.seed)}"></td>${cells}
           <td><input data-bind="${p}contactName" value="${esc(en.contactName)}"></td><td><input data-bind="${p}contactEmail" value="${esc(en.contactEmail || en.contactTel)}" placeholder="メール/電話"></td>
           <td><span class="tag ${en.source === 'web' ? 'web' : ''}">${en.source === 'web' ? 'Web' : en.source === 'csv' ? 'CSV' : '手入力'}</span></td>
           <td class="center"><input type="checkbox" data-bind="${p}withdrawn" data-rerender="1"${en.withdrawn ? ' checked' : ''}></td>
           <td><button class="btn sm danger" data-act="entryDel" data-id="${en.id}">削除</button></td></tr>`;
-      }).join('') || `<tr><td colspan="${6 + pc * 2}" class="muted">申込はまだありません</td></tr>`}
+      }).join('') || `<tr><td colspan="${teamEv ? 10 : 6 + pc * 2}" class="muted">申込はまだありません</td></tr>`}
       </tbody></table></div></section>`;
     });
     return h;
@@ -382,44 +418,83 @@
     const c = BT.ctx(S);
     if (BT.isAuto(c, m)) return;
     const ev = c.event.get(m.eventId);
+    const team = BT.isTeamEv(ev);
     const a = BTR.sideLabel(c, m.a), b = BTR.sideLabel(c, m.b);
     const G = Math.max(1, +ev.games || 3);
-    const sc = (i, k) => (m.scores && m.scores[i] ? m.scores[i][k] : '');
     const ready = !a.tbd && !b.tbd;
+    const dis = ready ? '' : ' disabled';
+    const rubLabels = team ? BT.rubberList(ev) : [];
+    const rubs = team ? rubLabels.map((lb, i) => Object.assign({ label: lb, pa: '', pb: '', scores: [] }, (m.rubbers || [])[i] || {}, { label: lb })) : [];
+    const memOpts = (src) => { const en = c.entry.get(BT.resolve(c, src)); return BT.memberNames(en).map((n) => `<option value="${esc(n)}">`).join(''); };
+
+    // スコア入力欄（r: 団体戦の試合番号 / 個人戦は 'x'）
+    const grid = (r, scores, players) => {
+      const sc = (i, k) => (scores && scores[i] ? scores[i][k] : '');
+      const nameCell = (k) => players ? `<input class="rp" data-r="${r}" data-p="${k}" list="mem${k}" placeholder="${k ? esc(b.text) : esc(a.text)} の選手" value="${esc(players[k])}"${dis}>` : `<div class="nm">${esc(k ? b.text : a.text)}</div>`;
+      return `<div class="score-grid" style="grid-template-columns:minmax(0,1fr) repeat(${G}, 52px)"><div></div>${Array.from({ length: G }, (_, i) => `<div class="hd">第${i + 1}G</div>`).join('')}
+        ${[0, 1].map((k) => nameCell(k) + Array.from({ length: G }, (_, i) => `<input type="number" min="0" inputmode="numeric" data-r="${r}" data-g="${i}" data-s="${k}" value="${esc(sc(i, k))}"${dis}>`).join('')).join('')}</div>`;
+    };
+
+    const body = team
+      ? `<datalist id="mem0">${memOpts(m.a)}</datalist><datalist id="mem1">${memOpts(m.b)}</datalist>
+         <div class="team-sum" id="mTeamSum"></div>
+         ${rubs.map((r, i) => `<div class="rub"><div class="rub-h"><b>${esc(r.label)}</b><span class="rub-w" id="rw${i}"></span></div>${grid(i, r.scores, [r.pa, r.pb])}</div>`).join('')}`
+      : grid('x', m.scores);
+
     const bg = document.createElement('div');
     bg.className = 'modal-bg';
-    bg.innerHTML = `<div class="modal"><h3>No.${m.no || '-'}　${esc(ev.name)}</h3><div class="muted small">${esc(BTR.stageLabel(c, m))}${m.time != null ? '　' + BT.fmtMin(m.time) + '〜 第' + m.court + 'コート' : ''}</div>
+    bg.innerHTML = `<div class="modal${team ? ' wide' : ''}"><h3>No.${m.no || '-'}　${esc(ev.name)}</h3><div class="muted small">${esc(BTR.stageLabel(c, m))}${m.time != null ? '　' + BT.fmtMin(m.time) + '〜 第' + m.court + 'コート' : ''}</div>
+      ${team ? `<div class="vs-head"><b>${esc(a.text)}</b> <span class="muted">対</span> <b>${esc(b.text)}</b></div>` : ''}
       ${ready ? '' : '<p class="notice warn">対戦相手が確定していません（前の試合の結果入力後に入力できます）。</p>'}
-      <div class="score-grid" style="grid-template-columns:1fr repeat(${G}, 58px)"><div></div>${Array.from({ length: G }, (_, i) => `<div class="hd">第${i + 1}G</div>`).join('')}
-        <div class="nm">${esc(a.text)}</div>${Array.from({ length: G }, (_, i) => `<input type="number" min="0" inputmode="numeric" data-g="${i}" data-s="0" value="${esc(sc(i, 0))}"${ready ? '' : ' disabled'}>`).join('')}
-        <div class="nm">${esc(b.text)}</div>${Array.from({ length: G }, (_, i) => `<input type="number" min="0" inputmode="numeric" data-g="${i}" data-s="1" value="${esc(sc(i, 1))}"${ready ? '' : ' disabled'}>`).join('')}
-      </div>
+      ${body}
       <div class="row" style="margin-top:12px"><label class="f"><span>結果の種類</span><select id="mType"><option value="normal">通常</option><option value="retired">途中棄権</option><option value="walkover">棄権（不戦勝）</option></select></label>
-      <label class="f"><span>勝者</span><select id="mWin"><option value="">自動（スコアから判定）</option><option value="a">${esc(a.text)}</option><option value="b">${esc(b.text)}</option></select></label></div>
+      <label class="f"><span>勝者</span><select id="mWin"><option value="">自動（${team ? '勝ち数' : 'スコア'}から判定）</option><option value="a">${esc(a.text)}</option><option value="b">${esc(b.text)}</option></select></label></div>
       <div id="mJudge" class="small" style="margin-top:6px"></div>
       <details style="margin-top:12px"><summary class="small">時刻・コートを変更</summary><div class="row" style="margin-top:8px"><label class="f"><span>開始予定</span><input type="time" id="mTime" value="${m.time != null ? BT.fmtMin(m.time).padStart(5, '0') : ''}"></label><label class="f"><span>コート</span><input type="number" min="1" id="mCourt" value="${m.court || ''}" style="width:80px"></label><label class="f"><span>試合番号</span><input type="number" min="1" id="mNo" value="${m.no || ''}" style="width:80px"></label></div></details>
-      <div class="foot">${m.result ? '<button class="btn danger" data-m="clear">結果を取り消す</button>' : ''}<span class="spacer"></span><button class="btn" data-m="close">閉じる</button><button class="btn primary" data-m="save"${ready ? '' : ' disabled'}>保存</button></div></div>`;
+      <div class="foot">${m.result ? '<button class="btn danger" data-m="clear">結果を取り消す</button>' : ''}<span class="spacer"></span><button class="btn" data-m="close">閉じる</button><button class="btn primary" data-m="save"${dis}>保存</button></div></div>`;
     document.body.appendChild(bg);
     $('#mType', bg).value = m.resultType || 'normal';
     $('#mWin', bg).value = m.result && (m.resultType !== 'normal' || BT.autoWinner(m) !== m.result) ? m.result : '';
-    const collect = () => {
+
+    const readScores = (r) => {
       const scores = [];
       for (let i = 0; i < G; i++) {
-        const x = $(`input[data-g="${i}"][data-s="0"]`, bg).value, y = $(`input[data-g="${i}"][data-s="1"]`, bg).value;
+        const x = $(`input[data-r="${r}"][data-g="${i}"][data-s="0"]`, bg).value, y = $(`input[data-r="${r}"][data-g="${i}"][data-s="1"]`, bg).value;
         if (x !== '' || y !== '') scores.push([x === '' ? '' : +x, y === '' ? '' : +y]);
       }
+      return scores;
+    };
+    const collect = () => {
       const type = $('#mType', bg).value;
-      const tmp = { scores, resultType: type };
-      const win = $('#mWin', bg).value || (type === 'walkover' ? '' : BT.autoWinner(tmp)) || null;
-      return { scores, type, win };
+      const res = { type };
+      if (team) {
+        res.rubbers = rubs.map((r, i) => {
+          const scores = readScores(i);
+          return { label: r.label, pa: $(`input[data-r="${i}"][data-p="0"]`, bg).value.trim(), pb: $(`input[data-r="${i}"][data-p="1"]`, bg).value.trim(), scores, result: BT.autoWinner({ scores }) };
+        });
+        res.scores = [];
+        res.has = res.rubbers.some((r) => r.scores.length);
+        res.win = $('#mWin', bg).value || (type === 'walkover' ? '' : BT.autoWinnerTeam({ rubbers: res.rubbers })) || null;
+      } else {
+        res.scores = readScores('x');
+        res.has = res.scores.length > 0;
+        res.win = $('#mWin', bg).value || (type === 'walkover' ? '' : BT.autoWinner({ scores: res.scores })) || null;
+      }
+      return res;
     };
     const judge = () => {
       const r = collect();
-      $('#mJudge', bg).innerHTML = r.win ? `勝者：<b class="w">${esc(r.win === 'a' ? a.text : b.text)}</b>` : '<span class="muted">勝者が決まっていません（スコアまたは勝者を指定）</span>';
+      if (team) {
+        const t = BT.teamCount({ rubbers: r.rubbers });
+        $('#mTeamSum', bg).innerHTML = `<span>${esc(a.text)}</span><b>${t.ra}</b><span class="muted">-</span><b>${t.rb}</b><span>${esc(b.text)}</span>`;
+        r.rubbers.forEach((x, i) => { $(`#rw${i}`, bg).innerHTML = x.result ? `<span class="w">${esc(x.result === 'a' ? a.text : b.text)} の勝ち</span>` : ''; });
+      }
+      $('#mJudge', bg).innerHTML = r.win ? `勝者：<b class="w">${esc(r.win === 'a' ? a.text : b.text)}</b>` : `<span class="muted">勝者が決まっていません（スコアまたは勝者を指定）</span>`;
     };
     bg.addEventListener('input', judge); bg.addEventListener('change', judge); judge();
-    const first = $('input[data-g="0"][data-s="0"]', bg); if (first && !first.disabled) setTimeout(() => first.focus(), 50);
+    const first = $('input[data-g="0"][data-s="0"]', bg); if (first && !first.disabled && !team) setTimeout(() => first.focus(), 50);
     const close = () => bg.remove();
+    const reset = (d) => { d.result = null; d.scores = []; d.rubbers = null; d.status = ''; d.resultType = 'normal'; };
     bg.addEventListener('click', (e) => {
       if (e.target === bg) return close();
       const act = e.target.dataset && e.target.dataset.m;
@@ -427,21 +502,23 @@
       if (act === 'clear') {
         const deps = dependents(m.id);
         if (deps.length && !confirm(`この試合の結果に関係する後の試合（${deps.length}試合）の結果も取り消されます。よろしいですか？`)) return;
-        deps.forEach((d) => { d.result = null; d.scores = []; d.status = ''; });
-        m.result = null; m.scores = []; m.resultType = 'normal'; m.status = '';
+        deps.forEach(reset); reset(m);
         save(); close(); render();
       }
       if (act === 'save') {
         const r = collect();
         applyTimeEdits();
-        if (r.win || r.scores.length) {
+        if (r.win || r.has) {
           if (!r.win) { alert('勝者を判定できません。スコアを確認するか勝者を選択してください。'); return; }
           if (m.result && m.result !== r.win) {
             const deps = dependents(m.id);
             if (deps.length && !confirm(`勝者が変わるため、後の試合（${deps.length}試合）の結果を取り消します。よろしいですか？`)) return;
-            deps.forEach((d) => { d.result = null; d.scores = []; d.status = ''; });
+            deps.forEach(reset);
           }
           m.scores = r.scores; m.resultType = r.type; m.result = r.win; m.status = 'done'; m.endedAt = Date.now();
+          if (team) m.rubbers = r.rubbers;
+        } else if (team) {
+          m.rubbers = collect().rubbers; // 途中経過（出場選手など）を保存
         }
         save(); close(); render();
       }
@@ -452,7 +529,7 @@
       if (cv > 0) m.court = cv;
       if (nv > 0) m.no = nv;
     }
-    bg.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && e.target.tagName === 'INPUT') $('[data-m="save"]', bg).click(); });
+    bg.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type === 'number') $('[data-m="save"]', bg).click(); });
   }
 
   // ---------- 公開・通信 ----------
@@ -489,7 +566,7 @@
   function printHTML(title, html, landscape) {
     const w = window.open('', '_blank');
     if (!w) { alert('ポップアップがブロックされました。許可してください。'); return; }
-    w.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${esc(title)}</title><link rel="stylesheet" href="${new URL('css/style.css', location.href).href}"><style>body{background:#fff;padding:12px}@page{size:A4 ${landscape ? 'landscape' : 'portrait'};margin:10mm}h2{margin:0 0 8px}</style></head><body>${html}<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>`);
+    w.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${esc(title)}</title><link rel="stylesheet" href="${new URL('css/style.css', location.href).href}"><style>body{background:#fff;padding:12px}@page{size:A4 ${landscape ? 'landscape' : 'portrait'};margin:${landscape ? 10 : 15}mm}h2{margin:0 0 8px}</style></head><body>${html}<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>`);
     w.document.close();
   }
 
@@ -497,8 +574,11 @@
   const CSV_HEAD = ['種目', '選手1氏名', '選手1フリガナ', '選手1所属', '選手2氏名', '選手2フリガナ', '選手2所属', 'シード', '代表者', 'メール', '電話', '備考'];
   function mapHeader(h) {
     const s = String(h).replace(/[\s　]/g, '');
-    const no = /[2２]|パートナー|ペア|後衛/.test(s) ? 1 : 0;
-    const hasNo = /[1１2２]|パートナー|ペア/.test(s);
+    // 見出しの番号（選手1〜選手12）を読み取る
+    const half = s.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+    const dm = /(\d{1,2})/.exec(half);
+    const no = dm && +dm[1] >= 1 && +dm[1] <= 20 ? +dm[1] - 1 : /パートナー|ペア|後衛/.test(s) ? 1 : 0;
+    const hasNo = !!dm || /パートナー|ペア/.test(s);
     if (/種目|クラス|部門|カテゴリ/.test(s)) return { k: 'event' };
     if (/代表|責任者|申込者/.test(s)) return { k: 'contactName' };
     if (/メール|mail/i.test(s)) return { k: 'contactEmail' };
@@ -506,6 +586,7 @@
     if (/シード/.test(s)) return { k: 'seed' };
     if (/備考|メモ|連絡事項/.test(s)) return { k: 'memo' };
     if (/タイムスタンプ|日時/.test(s)) return null;
+    if (/チーム名|団体名/.test(s)) return { k: 'teamName' };
     if (/フリガナ|ふりがな|カナ|よみ/.test(s)) return { k: 'kana', p: no };
     if (/所属|チーム|クラブ|団体|学校/.test(s)) return hasNo ? { k: 'team', p: no } : { k: 'entryTeam' };
     if (/氏名|名前|選手/.test(s)) return { k: 'name', p: no };
@@ -515,7 +596,7 @@
     const rows = BT.parseCSV(text);
     if (rows.length < 2) { alert('データ行がありません'); return; }
     const map = rows[0].map(mapHeader);
-    if (!map.some((x) => x && x.k === 'name')) { alert('「氏名」列が見つかりません。CSVひな形の見出しを使ってください。'); return; }
+    if (!map.some((x) => x && (x.k === 'name' || x.k === 'teamName'))) { alert('「氏名」列が見つかりません。CSVひな形の見出しを使ってください。'); return; }
     let added = 0, newEv = [];
     rows.slice(1).forEach((r) => {
       const en = BT.newEntry(null); en.source = 'csv';
@@ -527,12 +608,13 @@
         else if (m.p != null) { en.players[m.p] = en.players[m.p] || { name: '', kana: '', team: '' }; en.players[m.p][m.k] = v; }
         else en[m.k] = v;
       });
-      if (!en.players.some((p) => p.name)) return;
+      en.players = en.players.filter((p) => p && (p.name || !en.teamName));
+      if (!en.players.some((p) => p.name) && !en.teamName) return;
       if (en.team) en.players.forEach((p) => { if (p.name && !p.team) p.team = en.team; });
       let ev = evName ? S.events.find((e) => BT.normName(e.name) === BT.normName(evName)) : (ui.evFilter ? S.events.find((e) => e.id === ui.evFilter) : S.events[0]);
       if (!ev) {
         ev = Object.assign(BT.newEvent(), { name: evName || '未分類' });
-        if (!en.players[1] || !en.players[1].name) ev.type = 'singles';
+        if (en.teamName) { ev.type = 'team'; ev.minutes = 60; } else if (!en.players[1] || !en.players[1].name) ev.type = 'singles';
         S.events.push(ev); newEv.push(ev.name);
       }
       en.eventId = ev.id;
@@ -550,7 +632,11 @@
       organizer: 'みらいバドミントン協会', host: 'みらいバドミントンクラブ', deadline: '2026-11-09', shuttle: '日本バドミントン協会検定合格球',
       contactName: '大会事務局', contactEmail: 'entry@example.com', courts: 6, startTime: '09:00', matchMinutes: 20, restMinutes: 10,
       method: '（公財）日本バドミントン協会競技規則および大会運営規程に準ずる。\n全試合21点ラリーポイント3ゲームマッチで行う。',
-      eligibility: '市内在住・在勤・在学者、または市内クラブに所属する者', notes: '駐車場に限りがあります。乗り合わせでご来場ください。',
+      eligibility: '中学生以上のバドミントン愛好家', receptionTime: '8:40', issueDate: '令和8年9月吉日', representative: '会　長　未来　太郎',
+      contactTel: '090-0000-0000', contactLine: 'https://lin.ee/xxxxxxx',
+      fee: '個人戦　1人　1,500円\n団体戦　1チーム　8,000円\n・当日受付で徴収致します。',
+      eventsText: '一般男子ダブルス・一般女子シングルス・混合ダブルス・男子団体戦\n・申込み数によりランクの変更があります。',
+      notes: '要項に定めのない事については主催者一任のこと。\n競技中の事故につきましては一切の責任を持ちませんので各自ご了承下さい。',
     });
     const ln = ['佐藤', '鈴木', '高橋', '田中', '伊藤', '渡辺', '山本', '中村', '小林', '加藤', '吉田', '山田', '佐々木', '山口', '松本', '井上', '木村', '林', '清水', '斎藤', '森', '池田', '橋本', '石川'];
     const mf = ['翔太', '大輔', '健太', '拓也', '直樹', '亮', '悠斗', '蓮', '陽翔', '湊'], ff = ['美咲', '陽菜', '結衣', '彩', '花子', '真央', '葵', '凛', '芽依', '咲'];
@@ -570,17 +656,36 @@
     const e3 = Object.assign(BT.newEvent(), { name: '混合ダブルス', type: 'doubles', format: 'league_tournament', groupSize: 3, advance: 1, fee: '1組 3,000円', games: '1', points: '21' });
     s.events.push(e1, e2, e3);
     mk(e1, 11, false, false); mk(e2, 5, true, false); mk(e3, 12, false, true);
+    const e4 = Object.assign(BT.newEvent(), { name: '男子団体戦', type: 'team', format: 'league_tournament', groupSize: 3, advance: 1, fee: '1チーム 8,000円', games: '3', minutes: 60, rubbers: '第1ダブルス,第2ダブルス,シングルス', teamMin: 3, teamMax: 6 });
+    s.events.push(e4);
+    teams.forEach((tm, i) => {
+      const en = BT.newEntry(e4.id); en.source = 'manual'; en.teamName = `${tm} ${i % 2 ? 'B' : 'A'}チーム`; en.team = tm;
+      en.players = Array.from({ length: 4 + (i % 2) }, () => ({ name: `${pick(ln)} ${pick(mf)}`, kana: '', team: tm }));
+      s.entries.push(en);
+    });
     return s;
   }
 
   // ---------- アクション ----------
   const ACT = {
     demo() { if (S.events.length && !confirm('デモデータで新しい大会を作成します（今の大会は残ります）。')) return; createNew(demoState()); toast('デモデータを読み込みました'); },
-    methodTemplate() { const T = S.tournament; T.method = (T.method ? T.method + '\n' : '') + '（公財）日本バドミントン協会競技規則および大会運営規程に準ずる。\n試合は21点ラリーポイント3ゲームマッチで行う。ただし、予選リーグは1ゲームマッチとする場合がある。\n審判は原則として敗者審判とする。'; save(); render(); },
+    methodTemplate() {
+      const T = S.tournament;
+      const fmts = [...new Set(S.events.map((e) => e.format))];
+      const head = fmts.length === 1 ? { tournament: 'トーナメント方式とします。', league: 'リーグ方式とします。', league_tournament: '予選はリーグ方式、決勝はトーナメント方式とします。' }[fmts[0]] : '';
+      const ls = [];
+      if (!head) S.events.forEach((e) => ls.push(`・${e.name}：${BTR.eventSummary(e).fm}`));
+      S.events.filter(BT.isTeamEv).forEach((e) => ls.push(`・${e.name}は${BT.rubberList(e).join('・')}の${BT.rubberList(e).length}試合で行います。`));
+      ls.push('・参加チーム数により変更する事もあります。', '・得点やセット数は主催者一任のこと。');
+      T.method = [head || '試合方法は次のとおりとします。'].concat(ls).join('\n');
+      save(); render();
+    },
+    notesTemplate() { const T = S.tournament; T.notes = (T.notes ? T.notes + '\n' : '') + '要項に定めのない事については主催者一任のこと。\n競技中の事故につきましては一切の責任を持ちませんので各自ご了承下さい。'; save(); render(); },
+    qrDel() { S.tournament.contactQr = ''; save(); render(); },
     addSection() { S.tournament.extraSections.push({ title: '', body: '' }); save(); render(); },
     delSection(el) { S.tournament.extraSections.splice(+el.dataset.i, 1); save(); render(); },
     printGuide() { printHTML(S.tournament.name + ' 要項', BTR.guide(S)); },
-    evAdd(el, name) { const ev = BT.newEvent(); if (typeof name === 'string') { ev.name = name; if (/シングルス/.test(name)) ev.type = 'singles'; } S.events.push(ev); save(); render(); },
+    evAdd(el, name) { const ev = BT.newEvent(); if (typeof name === 'string') { ev.name = name; if (/シングルス/.test(name)) ev.type = 'singles'; if (/団体/.test(name)) { ev.type = 'team'; ev.minutes = 60; } } S.events.push(ev); save(); render(); },
     evUp(el) { const i = S.events.findIndex((e) => e.id === el.dataset.id); if (i > 0) { [S.events[i - 1], S.events[i]] = [S.events[i], S.events[i - 1]]; save(); render(); } },
     evDown(el) { const i = S.events.findIndex((e) => e.id === el.dataset.id); if (i < S.events.length - 1) { [S.events[i + 1], S.events[i]] = [S.events[i], S.events[i + 1]]; save(); render(); } },
     evDel(el) {
@@ -592,9 +697,10 @@
     entryAdd(el) {
       const en = BT.newEntry(el.dataset.ev);
       const prev = S.entries.filter((e) => e.eventId === el.dataset.ev).pop();
-      if (prev) en.players.forEach((p, k) => { p.team = (prev.players[k] || {}).team || ''; }); // 所属は前の行を引き継ぐ
+      if (BT.isTeamEv(S.events.find((e) => e.id === el.dataset.ev))) en.players = [];
+      else if (prev) en.players.forEach((p, k) => { p.team = (prev.players[k] || {}).team || ''; }); // 所属は前の行を引き継ぐ
       S.entries.push(en); save(); render();
-      const inp = main.querySelector(`[data-bind="entries.#${en.id}.players.0.name"]`); if (inp) inp.focus();
+      const inp = main.querySelector(`[data-bind="entries.#${en.id}.players.0.name"],[data-bind="entries.#${en.id}.teamName"]`); if (inp) inp.focus();
     },
     entryDel(el) {
       const en = S.entries.find((e) => e.id === el.dataset.id);
@@ -604,8 +710,8 @@
     },
     csvTemplate() { download('申込ひな形.csv', BT.toCSV([CSV_HEAD, [S.events[0] ? S.events[0].name : '一般男子ダブルス', '山田 太郎', 'ヤマダ タロウ', 'みらいBC', '鈴木 一郎', 'スズキ イチロウ', 'みらいBC', '', '山田 太郎', 'taro@example.com', '090-0000-0000', '']]), 'text/csv'); },
     csvExport() {
-      const rows = [CSV_HEAD.concat(['受付'])];
-      S.entries.forEach((en) => { const ev = S.events.find((e) => e.id === en.eventId); const p = en.players; rows.push([ev ? ev.name : '', p[0] && p[0].name, p[0] && p[0].kana, p[0] && p[0].team, p[1] && p[1].name, p[1] && p[1].kana, p[1] && p[1].team, en.seed, en.contactName, en.contactEmail, en.contactTel, en.memo, en.withdrawn ? '棄権' : '']); });
+      const rows = [CSV_HEAD.concat(['受付', 'チーム名', 'メンバー'])];
+      S.entries.forEach((en) => { const ev = S.events.find((e) => e.id === en.eventId); const p = en.players; rows.push([ev ? ev.name : '', p[0] && p[0].name, p[0] && p[0].kana, p[0] && p[0].team, p[1] && p[1].name, p[1] && p[1].kana, p[1] && p[1].team, en.seed, en.contactName, en.contactEmail, en.contactTel, en.memo, en.withdrawn ? '棄権' : '', en.teamName || '', en.teamName ? BT.memberNames(en).join('、') : '']); });
       download('申込一覧.csv', BT.toCSV(rows), 'text/csv');
     },
     async pullEntries() {
@@ -721,7 +827,7 @@
       const slots = r1.flatMap((m) => [[m, 'a'], [m, 'b']]);
       const [m1, s1] = slots[+el.dataset.i], [m2, s2] = slots[+el.value];
       if ([m1, m2].some((m) => m.result) && !confirm('結果が入力済みの試合が含まれます。結果を取り消して入れ替えますか？')) { render(); return; }
-      [m1, m2].forEach((m) => { m.result = null; m.scores = []; m.status = ''; });
+      [m1, m2].forEach((m) => { m.result = null; m.scores = []; m.rubbers = null; m.status = ''; });
       const tmp = m1[s1]; m1[s1] = m2[s2]; m2[s2] = tmp;
       save(); render();
     },
@@ -737,13 +843,19 @@
   });
   const onInput = (e) => {
     const el = e.target;
+    if (el.dataset.members) {
+      const en = S.entries.find((x) => x.id === el.dataset.members);
+      en.players = el.value.split(/[,、，\n]+/).map((x) => x.trim()).filter(Boolean).map((name) => ({ name, kana: '', team: en.team || '' }));
+      save();
+      return;
+    }
     if (el.dataset.bind) {
       let v = el.type === 'checkbox' ? el.checked : el.value;
       if (el.type === 'number' && v !== '' && /^tournament\.(courts|matchMinutes|restMinutes)$/.test(el.dataset.bind)) v = +v;
       setPath(el.dataset.bind, v);
       save();
       if (el.dataset.rerender && e.type === 'change') render();
-      else if (ui.tab === 'guide') { const p = $('#guidePreview'); if (p) p.innerHTML = BTR.guide(S); }
+      else if (ui.tab === 'guide') { const p = $('#guidePreview'); if (p) { p.innerHTML = BTR.guide(S); fitGuide(); } }
     }
   };
   main.addEventListener('input', onInput);
@@ -752,6 +864,8 @@
     if (el.dataset.actChange && CHANGE[el.dataset.actChange]) { CHANGE[el.dataset.actChange](el); return; }
     if (el.id === 'presetSel' && el.value) { ACT.evAdd(null, el.value); return; }
     if (el.id === 'csvFile' && el.files[0]) { readFile(el.files[0], importCSV); return; }
+    if (el.id === 'qrFile' && el.files[0]) { loadQr(el.files[0]); return; }
+    if (el.dataset.members) { render(); return; }
     if (el.id === 'jsonFile' && el.files[0]) {
       readFile(el.files[0], (text) => {
         try { const s = migrate(JSON.parse(text)); if (!s.tournament || !s.events) throw new Error(); if (getIndex().some((x) => x.id === s.id) && !confirm('同じ大会のデータがあります。上書きしますか？（キャンセルで別の大会として読み込み）')) s.id = BT.uid('t'); S = s; save(true); render(); toast('読み込みました'); }
@@ -761,6 +875,21 @@
     }
     if (el.dataset.bind && el.dataset.rerender) render();
   });
+  // QRコード画像を縮小して保存
+  function loadQr(file) {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const w = Math.min(240, img.width) || 240;
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = Math.round(w * img.height / img.width);
+        const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+        S.tournament.contactQr = cv.toDataURL('image/png'); save(); render();
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  }
   function readFile(f, cb) {
     const r = new FileReader();
     r.onload = () => {

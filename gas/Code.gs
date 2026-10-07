@@ -28,6 +28,9 @@ const ADMIN_KEY = 'change-me'; // ← 必ず変更してください
 // 空欄で単独のApps Scriptとして動かすと、「バドミントン大会データ」フォルダに「大会一覧」を自動で作ります。
 const INDEX_SPREADSHEET_ID = '';
 
+// 大会運営アプリの公開URL（案内ページの「開く」ボタンの行き先）
+const APP_URL = 'https://kazuto-desu.github.io/badminton-tournament/';
+
 const FOLDER_NAME = 'バドミントン大会データ';
 const INDEX_SHEET = '大会一覧';
 const WEB_SHEET = 'Web申込';
@@ -40,6 +43,8 @@ const SHEET_ORDER = ['大会情報', '種目', '申込一覧', WEB_SHEET, '組�
 function doGet(e) {
   const p = (e && e.parameter) || {};
   try {
+    // LINE・メールで送る用の案内ページ（リンクのプレビューに大会名が出る）
+    if (p.share) return sharePage_(p.share, p.t);
     if (p.action === 'public') {
       const ss = openT_(p.t);
       const snap = ss && readStore_(ss, 'public');
@@ -77,6 +82,47 @@ function doPost(e) {
 function auth_(key) {
   if (ADMIN_KEY === 'change-me') throw new Error('Code.gs の ADMIN_KEY を変更してから再デプロイしてください');
   if (key !== ADMIN_KEY) throw new Error('管理キーが一致しません');
+}
+
+// ===================== 案内ページ =====================
+function sharePage_(kind, tid) {
+  const ss = openT_(tid);
+  const snap = ss && readStore_(ss, 'public');
+  const t = snap ? (JSON.parse(snap).tournament || {}) : {};
+  const isApply = kind !== 'view';
+  const name = t.name || '大会';
+  const title = name + (isApply ? '　参加申込' : '　組み合わせ・結果');
+  const self = ScriptApp.getService().getUrl();
+  const target = APP_URL + (isApply ? 'apply.html' : 'view.html') + '?api=' + encodeURIComponent(self) + '&t=' + encodeURIComponent(tid || '');
+  const rows = [];
+  if (t.date) rows.push(['期日', fmtDate_(t.date)]);
+  if (t.venue) rows.push(['場所', t.venue]);
+  if (isApply && t.deadline) rows.push(['申込期限', fmtDate_(t.deadline)]);
+  const html = '<!doctype html><html lang="ja"><head><meta charset="utf-8"><base target="_top">' +
+    '<style>body{font-family:"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;margin:0;background:#f4f6f9;color:#1d2433}' +
+    '.w{max-width:520px;margin:0 auto;padding:28px 18px}.c{background:#fff;border:1px solid #dde2ea;border-radius:12px;padding:22px}' +
+    'h1{font-size:1.3rem;margin:0 0 4px}.s{color:#6b7385;margin:0 0 16px}table{border-collapse:collapse;margin:0 0 20px}td{padding:4px 12px 4px 0;vertical-align:top}' +
+    'td:first-child{color:#6b7385;white-space:nowrap}a.b{display:block;text-align:center;background:#1f6feb;color:#fff;text-decoration:none;font-weight:700;padding:14px;border-radius:10px;font-size:1.05rem}</style></head>' +
+    '<body><div class="w"><div class="c"><div style="font-size:2rem">🏸</div><h1>' + esc_(name) + '</h1><p class="s">' + (isApply ? '参加申込' : '組み合わせ・タイムテーブル・結果') + '</p>' +
+    (snap ? '<table>' + rows.map(function (r) { return '<tr><td>' + esc_(r[0]) + '</td><td>' + esc_(r[1]) + '</td></tr>'; }).join('') + '</table>' +
+      '<a class="b" href="' + esc_(target) + '">' + (isApply ? '申込ページを開く' : '大会ページを開く') + '</a>'
+      : '<p>この大会の情報はまだ公開されていません。</p>') +
+    '</div></div></body></html>';
+  return HtmlService.createHtmlOutput(html).setTitle(title)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function fmtDate_(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+  if (!m) return String(s || '');
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  const y = +m[1] >= 2019 ? '令和' + (+m[1] - 2018 === 1 ? '元' : +m[1] - 2018) + '年' : m[1] + '年';
+  return y + (+m[2]) + '月' + (+m[3]) + '日（' + '日月火水木金土'[d.getDay()] + '）';
+}
+
+function esc_(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 }
 
 // ===================== 大会スプレッドシート =====================

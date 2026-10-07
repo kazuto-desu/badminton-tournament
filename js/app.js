@@ -35,6 +35,8 @@
   const API = () => { const a = getApi(); return { url: a.url || (S && S.tournament.apiUrl) || '', key: a.key || (S && S.tournament.apiKey) || '', indexUrl: a.indexUrl || '' }; };
   const linked = () => !!(API().url && API().key);
   const pageUrl = (page) => (API().url ? new URL(page, location.href).href + '?api=' + encodeURIComponent(API().url) + '&t=' + encodeURIComponent(S.id) : '');
+  // LINE・メールで送る用（Google側の案内ページ。リンクのプレビューに大会名が出る）
+  const shareUrl = (kind) => (API().url ? API().url + '?share=' + kind + '&t=' + encodeURIComponent(S.id) : '');
 
   let S = null;
   let ui = (() => { try { return JSON.parse(LS.get('bt.ui')) || {}; } catch (e) { return {}; } })();
@@ -394,8 +396,9 @@
       <div class="row"><button class="btn primary" data-act="publish"${linked() ? '' : ' disabled'}>${S.sheetUrl ? '今すぐ保存・公開' : 'スプレッドシートを作成して保存'}</button>
       ${field('変更を自動で保存・公開する（約8秒後）', t + 'autoPublish', { type: 'checkbox' })}
       ${field('Web申込を受け付ける', t + 'acceptApply', { type: 'checkbox' })}</div>
-      ${applyUrl ? `<table class="tbl" style="margin-top:12px"><tr><th>参加者用 申込ページ</th><td><a href="${esc(applyUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(applyUrl)}">URLをコピー</button></td></tr>
-      <tr><th>公開ページ（要項・組み合わせ・タイムテーブル・速報）</th><td><a href="${esc(viewUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(viewUrl)}">URLをコピー</button></td></tr></table>
+      ${applyUrl ? `<table class="tbl" style="margin-top:12px"><thead><tr><th></th><th>LINE・メールで送る用<div class="small muted">リンクに大会名が表示されます</div></th><th>直接開く用</th></tr></thead>
+      <tr><th>参加者用 申込ページ</th><td><button class="btn sm primary" data-act="copy" data-text="${esc(shareUrl('apply'))}">URLをコピー</button> <a href="${esc(shareUrl('apply'))}" target="_blank" rel="noopener">確認</a></td><td><a href="${esc(applyUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(applyUrl)}">URLをコピー</button></td></tr>
+      <tr><th>公開ページ（要項・組み合わせ・タイムテーブル・速報）</th><td><button class="btn sm primary" data-act="copy" data-text="${esc(shareUrl('view'))}">URLをコピー</button> <a href="${esc(shareUrl('view'))}" target="_blank" rel="noopener">確認</a></td><td><a href="${esc(viewUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(viewUrl)}">URLをコピー</button></td></tr></table>
       <p class="small muted">公開ページに出るのは要項・種目・選手名と所属・組み合わせ・結果のみです。代表者の連絡先はスプレッドシートにだけ保存され、公開されません。</p>` : ''}
       </div>
 

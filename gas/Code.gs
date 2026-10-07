@@ -8,6 +8,8 @@
  * 【設置手順（最初の1回だけ）】
  *  1. Googleドライブで新しいスプレッドシートを作成（名前は「大会運営_連携」など）
  *  2. メニュー「拡張機能」→「Apps Script」を開き、このファイルの内容を全部貼り付けて保存
+ *     ※Googleに複数アカウントでログインしていて開けない場合は、script.google.com で
+ *       「新しいプロジェクト」を作って貼り付け、下の INDEX_SPREADSHEET_ID に1.のIDを入れてください
  *  3. 下の ADMIN_KEY を自分だけが知る文字列に変更して保存
  *  4. 「デプロイ」→「新しいデプロイ」→ 種類「ウェブアプリ」
  *       次のユーザーとして実行：自分
@@ -20,6 +22,11 @@
  */
 
 const ADMIN_KEY = 'change-me'; // ← 必ず変更してください
+
+// 「大会一覧」を置くスプレッドシートのID（URLの /d/ と /edit の間の文字列）。
+// スプレッドシートの「拡張機能 → Apps Script」から作った場合は空欄のままでOK。
+// 空欄で単独のApps Scriptとして動かすと、「バドミントン大会データ」フォルダに「大会一覧」を自動で作ります。
+const INDEX_SPREADSHEET_ID = '';
 
 const FOLDER_NAME = 'バドミントン大会データ';
 const INDEX_SHEET = '大会一覧';
@@ -53,7 +60,7 @@ function doPost(e) {
   try {
     switch (b.action) {
       case 'apply': return json_(apply_(b.t, b.entry));
-      case 'ping': auth_(b.key); folder_(); return json_({ ok: true, indexUrl: SpreadsheetApp.getActiveSpreadsheet().getUrl() });
+      case 'ping': auth_(b.key); folder_(); return json_({ ok: true, indexUrl: indexSS_().getUrl() });
       case 'sync': auth_(b.key); return json_(sync_(b));
       case 'entries': { auth_(b.key); const ss = openT_(b.t); return json_({ ok: true, entries: ss ? webEntries_(ss) : [] }); }
       case 'loadState': { auth_(b.key); const ss = openT_(b.t); const s = ss && readStore_(ss, 'state'); return json_({ ok: true, state: s ? JSON.parse(s) : null }); }
@@ -84,8 +91,22 @@ function folder_() {
   return f;
 }
 
+// 大会一覧のスプレッドシート
+function indexSS_() {
+  if (INDEX_SPREADSHEET_ID) return SpreadsheetApp.openById(INDEX_SPREADSHEET_ID);
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('indexId');
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) { /* 作り直す */ } }
+  const ss = SpreadsheetApp.create('大会一覧');
+  DriveApp.getFileById(ss.getId()).moveTo(folder_());
+  props.setProperty('indexId', ss.getId());
+  return ss;
+}
+
 function index_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = indexSS_();
   let sh = ss.getSheetByName(INDEX_SHEET);
   if (!sh) {
     sh = ss.insertSheet(INDEX_SHEET, 0);

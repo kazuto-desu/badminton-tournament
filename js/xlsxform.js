@@ -100,9 +100,8 @@
       s.mergeCells(1, 1, 1, cols.length + 1);
       s.getCell(1, 1).value = `${ev.name}　申込`;
       s.getCell(1, 1).font = { size: 14, bold: true };
-      const sub = [];
-      const sum = BTR.eventSummary(ev);
-      sub.push(BT.TYPES[ev.type] || '', sum.fm, sum.rule);
+      // 試合形式（リーグ戦など）・ゲーム数は載せない
+      const sub = [BT.TYPES[ev.type] || ''];
       if (ev.fee) sub.push('参加料 ' + ev.fee);
       if (ev.capacity) sub.push('定員 ' + ev.capacity);
       if (ev.note) sub.push(ev.note);

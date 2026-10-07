@@ -108,7 +108,7 @@
   const TABS = [['guide', '大会要項'], ['events', '種目'], ['entries', '申込'], ['draw', '組み合わせ'], ['time', 'タイムテーブル'], ['pamphlet', 'パンフレット'], ['run', '進行・結果入力'], ['results', '結果'], ['settings', '設定・連携']];
 
   function render() {
-    if (S.sheetUrl && linked()) S.tournament.applyUrl = pageUrl('apply.html');
+    if (S.sheetUrl && linked()) { S.tournament.applyUrl = pageUrl('apply.html'); S.tournament.formUrl = pageUrl('form.html'); }
     refreshSelector();
     $('#tabs').innerHTML = TABS.map(([k, lb], i) => `<button data-tab="${k}" class="${ui.tab === k ? 'active' : ''}"><span class="num">${i + 1}</span>${lb}</button>`).join('');
     const sc = window.scrollY;
@@ -165,6 +165,7 @@
       <h3 style="margin-top:20px">申し込み</h3><div class="grid">
       ${field('申し込み方法', t + 'applyMethod', { type: 'textarea', cls: 'wide', rows: 2 })}
       <div class="wide row"><button class="btn sm" data-act="applyTextWeb">Web申込用の文例にする</button><button class="btn sm" data-act="applyTextMail">メール・LINE申込用の文例にする</button></div>
+      <div class="wide">${field('申込書（Excel）のダウンロードURLとQRコードを要項に載せる', t + 'showFormQr', { type: 'checkbox', rerender: true })}</div>
       <div class="wide">${field('Web申込のURLとQRコードを要項に載せる', t + 'showApplyQr', { type: 'checkbox', rerender: true })}
         <div class="small muted">${T.applyUrl ? '申込ページのQRコードが「申し込み」の欄に入ります。印刷した要項からスマートフォンで申し込めます。' : 'この大会を「⑧設定・連携」でGoogleに保存すると、申込ページのURLとQRコードが表示されます。'}</div></div>
       ${field('申し込み先（氏名）', t + 'contactName')}
@@ -227,6 +228,8 @@
     const total = S.entries.filter((e) => !e.withdrawn).length;
     let h = `<div class="card"><div class="row"><b>申込 ${total}組</b><span class="spacer"></span>
       <select data-act-change="evFilter"><option value="">すべての種目</option>${S.events.map((e) => `<option value="${e.id}"${ui.evFilter === e.id ? ' selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
+      <button class="btn" data-act="formDownload">申込書Excelを作成</button>
+      <label class="btn">Excel申込書を取込<input type="file" accept=".xlsx" id="xlsxFile" multiple hidden></label>
       <button class="btn" data-act="csvTemplate">CSVひな形</button>
       <label class="btn">CSV取込<input type="file" accept=".csv,text/csv" id="csvFile" hidden></label>
       <button class="btn" data-act="csvExport">CSV出力</button>
@@ -250,7 +253,7 @@
         const cells = teamEv ? `<td><input data-bind="${p}teamName" value="${esc(en.teamName)}" placeholder="○○クラブA"></td><td><input data-bind="${p}team" value="${esc(en.team)}"></td><td><textarea class="members" rows="2" data-members="${en.id}">${esc(BT.memberNames(en).join('、'))}</textarea></td><td class="num${warn ? ' w' : ''}" title="${esc(`${ev.teamMin || 1}〜${ev.teamMax || ''}人`)}">${nm}</td>` : Array.from({ length: pc }, (_, k) => `<td><input data-bind="${p}players.${k}.name" value="${esc((en.players[k] || {}).name)}"></td><td><input data-bind="${p}players.${k}.team" value="${esc((en.players[k] || {}).team)}"></td>`).join('');
         return `<tr class="${en.withdrawn ? 'withdrawn' : ''}"><td class="num">${i + 1}</td><td style="width:62px"><input type="number" min="0" data-bind="${p}seed" value="${esc(en.seed)}"></td>${cells}
           <td><input data-bind="${p}contactName" value="${esc(en.contactName)}"></td><td><input data-bind="${p}contactEmail" value="${esc(en.contactEmail || en.contactTel)}" placeholder="メール/電話"></td>
-          <td><span class="tag ${en.source === 'web' ? 'web' : ''}">${en.source === 'web' ? 'Web' : en.source === 'csv' ? 'CSV' : '手入力'}</span></td>
+          <td><span class="tag ${en.source === 'web' ? 'web' : ''}">${en.source === 'web' ? 'Web' : en.source === 'csv' ? 'CSV' : en.source === 'excel' ? 'Excel' : '手入力'}</span></td>
           <td class="center"><input type="checkbox" data-bind="${p}withdrawn" data-rerender="1"${en.withdrawn ? ' checked' : ''}></td>
           <td><button class="btn sm danger" data-act="entryDel" data-id="${en.id}">削除</button></td></tr>`;
       }).join('') || `<tr><td colspan="${teamEv ? 10 : 6 + pc * 2}" class="muted">申込はまだありません</td></tr>`}
@@ -328,17 +331,26 @@
   VIEWS.pamphlet = () => {
     const T = S.tournament;
     const t = 'tournament.';
-    const pm = T.pamphlet = Object.assign({ cover: true, officers: true, timetable: true, entries: true, draws: true }, T.pamphlet || {});
-    void pm;
+    const L = T.pmLayout = BTR.pmLayout(T);
+    const sel = (path, cur, opts) => `<select data-bind="${path}">${opts.map(([v, lb]) => `<option value="${v}"${String(cur) === String(v) ? ' selected' : ''}>${lb}</option>`).join('')}</select>`;
+    const cols = (path, cur, max) => sel(path, cur, Array.from({ length: max }, (_, i) => [i + 1, `${i + 1}列`]));
+    const opt = {
+      officers: `${cols(t + 'pmLayout.officersCols', L.officersCols, 3)} <label class="chk"><input type="checkbox" data-bind="${t}pmLayout.sideBySide"${L.sideBySide ? ' checked' : ''}> 大会次第と横に並べる</label>`,
+      agenda: cols(t + 'pmLayout.agendaCols', L.agendaCols, 3),
+      entries: `個人戦 ${cols(t + 'pmLayout.indCols', L.indCols, 3)}　団体戦 ${sel(t + 'pmLayout.teamPerRow', L.teamPerRow, [4, 5, 6, 7, 8].map((n) => [n, `横${n}チーム`]))}`,
+      draws: `リーグ表 ${cols(t + 'pmLayout.leagueCols', L.leagueCols, 3)}`,
+    };
+    const layoutRows = L.order.map((k, i) => `<tr><td class="center"><input type="checkbox" data-bind="${t}pmLayout.show.${k}"${L.show[k] ? ' checked' : ''}></td><td><b>${BTR.PM_SECTIONS[k]}</b></td>
+      <td style="white-space:nowrap"><button class="btn sm" data-act="pmUp" data-k="${k}"${i === 0 ? ' disabled' : ''}>↑</button><button class="btn sm" data-act="pmDown" data-k="${k}"${i === L.order.length - 1 ? ' disabled' : ''}>↓</button></td>
+      <td class="center">${k === 'cover' ? '<span class="muted small">常に1ページ</span>' : `<input type="checkbox" data-bind="${t}pmLayout.breakAfter.${k}"${L.breakAfter[k] ? ' checked' : ''}>`}</td>
+      <td class="small">${opt[k] || ''}</td></tr>`).join('');
     const evCodes = S.events.map((ev, i) => `<tr><td>${esc(ev.name)}</td><td style="width:120px"><input data-bind="events.#${ev.id}.code" value="${esc(ev.code)}" placeholder="${esc(BT.groupName(i))}"></td></tr>`).join('');
     return `<div class="help">大会当日に配るプログラム（表紙・大会役員と大会次第・タイムテーブル・参加者一覧・対戦表）を作ります。組み合わせとタイムテーブルを作成してから印刷してください。</div>
     <div class="split"><div>
-      <div class="card"><h3>載せるページ</h3><div class="row">
-        ${field('表紙', t + 'pamphlet.cover', { type: 'checkbox', rerender: true })}
-        ${field('大会役員・大会次第', t + 'pamphlet.officers', { type: 'checkbox', rerender: true })}
-        ${field('タイムテーブル', t + 'pamphlet.timetable', { type: 'checkbox', rerender: true })}
-        ${field('参加者一覧', t + 'pamphlet.entries', { type: 'checkbox', rerender: true })}
-        ${field('対戦表', t + 'pamphlet.draws', { type: 'checkbox', rerender: true })}</div></div>
+      <div class="card"><h3>ページ構成と配置</h3>
+        <p class="small muted">↑↓で順番を入れ替え、「このあと改ページ」を外すと次の項目を同じページに続けて載せます。列数を増やすと横に並べて縦の長さを抑えられます。</p>
+        <div class="tbl-scroll"><table class="tbl pm-layout"><thead><tr><th>表示</th><th>項目</th><th>順番</th><th>このあと改ページ</th><th>配置</th></tr></thead><tbody>${layoutRows}</tbody></table></div>
+        <div class="row" style="margin-top:8px"><label class="chk"><input type="checkbox" data-bind="${t}pmLayout.dense"${L.dense ? ' checked' : ''}> 行の間隔を詰める</label></div></div>
       <div class="card"><h3>表紙</h3>
         <p class="small muted">大会名・期日・場所・主催は「大会要項」の内容が入ります。</p>
         <div class="row">${T.coverImage ? `<img src="${esc(T.coverImage)}" alt="" style="max-height:90px;border:1px solid var(--line);border-radius:4px"><button class="btn sm danger" data-act="coverDel">画像を削除</button>` : ''}<label class="btn sm">表紙の画像を選ぶ<input type="file" accept="image/*" id="coverFile" hidden></label></div></div>
@@ -354,7 +366,7 @@
         ${field('', t + 'programNotes', { type: 'textarea', rows: 8 })}
         <button class="btn sm" data-act="programNotesTemplate">文例を入れる</button></div>
       <div class="card"><h3>試合コード（タイムテーブル・対戦表に表示）</h3>
-        <p class="small muted">種目の略称と試合順の番号で「MA-1」のように表示します。略称は「種目」タブでも変更できます。</p>
+        <p class="small muted">種目の略称と試合順の番号で「MA-1」のように表示します（空欄の種目はA・B・C…）。略称は「種目」タブでも変更できます。</p>
         <table class="tbl"><thead><tr><th>種目</th><th>略称</th></tr></thead><tbody>${evCodes}</tbody></table></div>
     </div>
     <div><div class="row no-print" style="margin-bottom:8px"><b>プレビュー</b><span class="spacer"></span><button class="btn primary" data-act="printPamphlet">印刷 / PDF保存</button></div>
@@ -436,6 +448,7 @@
       ${field('変更を自動で保存・公開する（約8秒後）', t + 'autoPublish', { type: 'checkbox' })}
       ${field('Web申込を受け付ける', t + 'acceptApply', { type: 'checkbox' })}</div>
       ${applyUrl ? `<table class="tbl" style="margin-top:12px"><thead><tr><th></th><th>LINE・メールで送る用<div class="small muted">リンクに大会名が表示されます</div></th><th>直接開く用</th></tr></thead>
+      <tr><th>申込書（Excel）のダウンロード</th><td><button class="btn sm primary" data-act="copy" data-text="${esc(shareUrl('form'))}">URLをコピー</button> <a href="${esc(shareUrl('form'))}" target="_blank" rel="noopener">確認</a></td><td><a href="${esc(pageUrl('form.html'))}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(pageUrl('form.html'))}">URLをコピー</button></td></tr>
       <tr><th>参加者用 申込ページ</th><td><button class="btn sm primary" data-act="copy" data-text="${esc(shareUrl('apply'))}">URLをコピー</button> <a href="${esc(shareUrl('apply'))}" target="_blank" rel="noopener">確認</a></td><td><a href="${esc(applyUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(applyUrl)}">URLをコピー</button></td></tr>
       <tr><th>公開ページ（要項・組み合わせ・タイムテーブル・速報）</th><td><button class="btn sm primary" data-act="copy" data-text="${esc(shareUrl('view'))}">URLをコピー</button> <a href="${esc(shareUrl('view'))}" target="_blank" rel="noopener">確認</a></td><td><a href="${esc(viewUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(viewUrl)}">URLをコピー</button></td></tr></table>
       <p class="small muted">公開ページに出るのは要項・種目・選手名と所属・組み合わせ・結果のみです。代表者の連絡先はスプレッドシートにだけ保存され、公開されません。</p>` : ''}
@@ -697,6 +710,24 @@
     alert(`${added}件を取り込みました。${newEv.length ? '\n新しく作成した種目：' + newEv.join('、') + '（「種目」タブで形式を確認してください）' : ''}`);
   }
 
+  // ---------- Excel申込書の取り込み ----------
+  async function importXlsx(files) {
+    let added = 0, dup = 0;
+    const msgs = [];
+    const key = (en) => en.eventId + '|' + (en.teamName ? BT.normName(en.teamName) + '|' : '') + BT.playerKeys(en).join(',');
+    const have = new Set(S.entries.map(key));
+    for (const f of files) {
+      try {
+        const r = await BTX.parse(await f.arrayBuffer(), S);
+        r.warnings.forEach((w) => msgs.push(`${f.name}：${w}`));
+        if (!r.contact.contactEmail && !r.contact.contactTel) msgs.push(`${f.name}：申込責任者の電話番号・メールアドレスが未記入です`);
+        r.entries.forEach((en) => { const k = key(en); if (have.has(k)) { dup++; return; } have.add(k); S.entries.push(en); added++; });
+      } catch (e) { msgs.push(`${f.name}：読み込めませんでした（${e.message}）`); }
+    }
+    save(); render();
+    alert(`Excel申込書から ${added}件を取り込みました。${dup ? `\n（すでに登録済みの ${dup}件は除外）` : ''}${msgs.length ? '\n\n' + msgs.join('\n') : ''}`);
+  }
+
   // ---------- デモデータ ----------
   function demoState() {
     const s = BT.newTournament();
@@ -779,6 +810,13 @@
       const ev = S.events[0] || {};
       T.programNotes = '(1)流し込みでコールします。時間・コートの変更にご注意ください。\n(2)試合方法\n　' + (ev.games == 1 ? '1ゲーム' : (ev.games || 3) + 'ゲームマッチ') + '（' + (ev.points || 21) + '点）\n　順位は次の順で決まる\n　　①勝ち数\n　　②得失点\n　　③①～②で決まらない場合は当該対戦勝者\n(3)相互審判とします。（不足する時は本部へお申し出ください。）\n(4)早めのオーダー用紙提出にご協力ください。\n(5)連続試合になる場合は十分な間隔を空けて行います。';
       save(); render();
+    },
+    pmUp(el) { const o = S.tournament.pmLayout.order; const i = o.indexOf(el.dataset.k); if (i > 0) { [o[i - 1], o[i]] = [o[i], o[i - 1]]; save(); render(); } },
+    pmDown(el) { const o = S.tournament.pmLayout.order; const i = o.indexOf(el.dataset.k); if (i >= 0 && i < o.length - 1) { [o[i + 1], o[i]] = [o[i], o[i + 1]]; save(); render(); } },
+    async formDownload() {
+      if (!S.events.length) { alert('先に「種目」タブで種目を登録してください。'); return; }
+      try { toast('申込書を作成しています…'); const blob = await BTX.build(S); BTX.download(blob, BTX.fileName(S.tournament)); }
+      catch (e) { alert(e.message); }
     },
     printPamphlet() { printHTML((S.tournament.name || '大会') + ' プログラム', BTR.pamphlet(S)); },
     evDel(el) {
@@ -968,6 +1006,7 @@
     if (el.dataset.actChange && CHANGE[el.dataset.actChange]) { CHANGE[el.dataset.actChange](el); return; }
     if (el.id === 'presetSel' && el.value) { ACT.evAdd(null, el.value); return; }
     if (el.id === 'csvFile' && el.files[0]) { readFile(el.files[0], importCSV); return; }
+    if (el.id === 'xlsxFile' && el.files.length) { importXlsx([...el.files]); return; }
     if (el.id === 'qrFile' && el.files[0]) { loadQr(el.files[0]); return; }
     if (el.id === 'coverFile' && el.files[0]) { loadCover(el.files[0]); return; }
     if (el.dataset.members) { render(); return; }

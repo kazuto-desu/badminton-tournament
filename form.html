@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>参加申込書（Excel）</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏸</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="pub-header"><h1 id="title">参加申込書（Excel）</h1><div class="sub" id="sub"></div></header>
+  <main class="pub-main" id="app"><p class="muted">申込書を作成しています…</p></main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/xlsxform.js"></script>
+  <script>
+  (async function () {
+    const esc = BT.esc;
+    const app = document.getElementById('app');
+    const qs = new URLSearchParams(location.search);
+    const api = qs.get('api'), tid = qs.get('t');
+    if (!api || !tid) { app.innerHTML = '<div class="notice err">URLが正しくありません。大会主催者から案内されたURLを開いてください。</div>'; return; }
+    try {
+      const snap = await BTAPI.getPublic(api, tid);
+      snap.id = tid;
+      const t = snap.tournament || {};
+      document.title = (t.name || '大会') + '　参加申込書（Excel）';
+      document.getElementById('title').textContent = (t.name || '大会') + '　参加申込書';
+      document.getElementById('sub').textContent = [BTR.fmtDate(t.date, t.era), t.venue].filter(Boolean).join('　');
+      const blob = await BTX.build(snap);
+      const name = BTX.fileName(t);
+      const contact = [t.contactName, t.contactEmail && 'E-Mail：' + t.contactEmail, t.contactTel && 'TEL：' + t.contactTel, t.contactLine && 'LINE：' + t.contactLine].filter(Boolean);
+      app.innerHTML = `<div class="card"><h3>📄 参加申込書（Excel）</h3>
+        <p>ダウンロードが始まらない場合は、下のボタンを押してください。</p>
+        <button class="btn primary" id="dl" style="font-size:1.05rem;padding:12px 20px">申込書をダウンロード</button>
+        <h4>記入と送付</h4><ol class="small">
+          <li>出場する種目のシート（画面下の見出し）に記入してください。</li>
+          <li>「申込責任者」シートに連絡先を記入してください（電話番号かメールアドレスのどちらかは必須）。</li>
+          <li>保存したファイルを下記の申込先へ送ってください。</li></ol>
+        ${t.deadline ? `<p>申込期限：<b>${esc(BTR.fmtDate(t.deadline, t.era))}</b></p>` : ''}
+        ${contact.length ? `<p class="small">申込先：${contact.map(esc).join('　')}</p>` : ''}</div>`;
+      document.getElementById('dl').addEventListener('click', () => BTX.download(blob, name));
+      BTX.download(blob, name);
+    } catch (e) {
+      app.innerHTML = `<div class="notice err">申込書を作成できませんでした：${esc(e.message)}</div>`;
+    }
+  })();
+  </script>
+</body>
+</html>

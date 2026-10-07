@@ -103,6 +103,13 @@
         <div class="g-url">${esc(t.applyUrl)}</div></div>
         ${qr ? `<img class="g-qr" src="${qr}" alt="申込ページのQRコード">` : ''}</div>`;
     }
+    if (t.showFormQr && t.formUrl) {
+      const qr = R.qrDataUrl(t.formUrl);
+      ap += `<div class="g-main">申込書（Excel）</div><div class="g-box"><div class="g-box-txt">
+        <div>右のQRコードまたは下記URLから申込書をダウンロードし、記入して申し込み先へ送ってください。</div>
+        <div class="g-url">${esc(t.formUrl)}</div></div>
+        ${qr ? `<img class="g-qr" src="${qr}" alt="申込書のQRコード">` : ''}</div>`;
+    }
     add('申し込み', ap);
     if (t.deadline) add('申込期限', `<div class="g-main g-strong">${esc(fd(t.deadline))}</div>${t.deadlineNote ? `<div class="g-main g-strong">${esc(t.deadlineNote)}</div>` : ''}`);
 
@@ -312,7 +319,26 @@
   const nl2br = (s) => esc(s).replace(/\n/g, '<br>');
   const spaced = (s) => `<span class="pm-sp">${esc(s)}</span>`;
 
-  R.pmCover = (t) => `<section class="pm-page pm-cover">
+  R.PM_SECTIONS = { cover: '表紙', officers: '大会役員', agenda: '大会次第', timetable: 'タイムテーブル', notes: '試合方式・注意事項', entries: '参加者一覧', draws: '対戦表' };
+
+  // 配置設定（未設定の項目は既定値）
+  R.pmLayout = (t) => {
+    const old = t.pamphlet || {};
+    const def = {
+      order: ['cover', 'officers', 'agenda', 'timetable', 'notes', 'entries', 'draws'],
+      show: { cover: old.cover !== false, officers: old.officers !== false, agenda: old.officers !== false, timetable: old.timetable !== false, notes: old.timetable !== false, entries: old.entries !== false, draws: old.draws !== false },
+      breakAfter: { cover: true, officers: false, agenda: true, timetable: false, notes: true, entries: true, draws: true },
+      officersCols: 1, agendaCols: 1, sideBySide: false, indCols: 1, teamPerRow: 6, leagueCols: 1, dense: false,
+    };
+    const L = Object.assign({}, def, t.pmLayout || {});
+    L.show = Object.assign({}, def.show, L.show || {});
+    L.breakAfter = Object.assign({}, def.breakAfter, L.breakAfter || {});
+    L.order = (L.order || []).filter((k) => def.order.includes(k));
+    def.order.forEach((k) => { if (!L.order.includes(k)) L.order.push(k); });
+    return L;
+  };
+
+  R.pmCover = (t) => `<div class="pm-cover">
       <h1>${esc(t.name || '（大会名未設定）')}</h1>
       ${t.coverImage ? `<img class="pm-cover-img" src="${esc(t.coverImage)}" alt="">` : '<div class="pm-cover-space"></div>'}
       <table class="pm-cover-info">
@@ -320,15 +346,19 @@
         ${t.venue ? `<tr><th>${spaced('場所')}</th><td>${esc(t.venue)}</td></tr>` : ''}
         ${t.organizer ? `<tr><th>${spaced('主催')}</th><td>${esc(t.organizer)}</td></tr>` : ''}
         ${t.host ? `<tr><th>${spaced('主管')}</th><td>${esc(t.host)}</td></tr>` : ''}
-      </table></section>`;
+      </table></div>`;
 
-  R.pmOfficers = (t) => {
+  // 役職・所属・氏名（列数指定のグリッド）
+  R.pmOfficers = (t, cols) => {
     const off = (t.officers || []).filter((o) => o.role || o.name || o.org);
+    if (!off.length) return '';
+    return `<div class="pm-block"><h2 class="pm-h">（ 大 会 役 員 ）</h2><div class="pm-grid" style="--cols:${cols}">${off.map((o) => `<div class="pm-item"><div class="pm-role">${spaced(o.role)}</div><div class="pm-org">${nl2br(o.org)}</div><div class="pm-name">${nl2br(o.name)}</div></div>`).join('')}</div></div>`;
+  };
+
+  R.pmAgenda = (t, cols) => {
     const ag = (t.agenda || []).filter((a) => a.item || a.time);
-    return `<section class="pm-page">
-      ${off.length ? `<h2 class="pm-h">（ 大 会 役 員 ）</h2><table class="pm-list">${off.map((o) => `<tr><th>${spaced(o.role)}</th><td>${nl2br(o.org)}</td><td>${nl2br(o.name)}</td></tr>`).join('')}</table>` : ''}
-      ${ag.length ? `<h2 class="pm-h">（ 大 会 次 第 ）</h2><table class="pm-list">${ag.map((a) => `<tr><th>${spaced(a.item)}</th><td>${esc(a.time)}${a.note ? `<div>${nl2br(a.note)}</div>` : ''}</td></tr>`).join('')}</table>` : ''}
-    </section>`;
+    if (!ag.length) return '';
+    return `<div class="pm-block"><h2 class="pm-h">（ 大 会 次 第 ）</h2><div class="pm-grid pm-agenda" style="--cols:${cols}">${ag.map((a) => `<div class="pm-item"><div class="pm-role">${spaced(a.item)}</div><div class="pm-org">${esc(a.time)}${a.note ? `<div>${nl2br(a.note)}</div>` : ''}</div></div>`).join('')}</div></div>`;
   };
 
   R.pmTimetable = (c) => {
@@ -336,43 +366,49 @@
     const C = Math.max(1, +t.courts || 1);
     const ms = st.matches.filter((m) => m.time != null && m.court);
     const times = [...new Set(ms.map((m) => m.time))].sort((a, b) => a - b);
-    let h = '<section class="pm-page"><h2 class="pm-h">タ イ ム テ ー ブ ル</h2>';
-    if (!times.length) h += '<p class="muted">タイムテーブル未作成</p>';
-    else {
-      h += `<table class="pm-tt"><thead><tr><th></th>${Array.from({ length: C }, (_, i) => `<th>${i + 1}</th>`).join('')}</tr></thead><tbody>`;
-      times.forEach((tm) => {
-        h += `<tr><th>${BT.fmtMin(tm)}</th>`;
-        for (let k = 1; k <= C; k++) { const m = ms.find((x) => x.time === tm && x.court === k); h += `<td>${m ? esc(BT.matchCode(c, m)) : ''}</td>`; }
-        h += '</tr>';
-      });
-      h += '</tbody></table>';
-      const legend = st.events.map((ev, i) => `${esc(BT.eventCode(ev, i))}＝${esc(ev.name)}`).join('　');
-      h += `<p class="pm-legend">${legend}</p>`;
-    }
-    if (String(t.programNotes || '').trim()) h += `<div class="pm-notes-h">★試合方式・注意事項</div><div class="pm-notes">${nl2br(t.programNotes)}</div>`;
-    return h + '</section>';
+    let h = '<div class="pm-block"><h2 class="pm-h">タ イ ム テ ー ブ ル</h2>';
+    if (!times.length) return h + '<p class="muted">タイムテーブル未作成</p></div>';
+    h += `<table class="pm-tt"><thead><tr><th></th>${Array.from({ length: C }, (_, i) => `<th>${i + 1}</th>`).join('')}</tr></thead><tbody>`;
+    times.forEach((tm) => {
+      h += `<tr><th>${BT.fmtMin(tm)}</th>`;
+      for (let k = 1; k <= C; k++) { const m = ms.find((x) => x.time === tm && x.court === k); h += `<td>${m ? esc(BT.matchCode(c, m)) : ''}</td>`; }
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    h += `<p class="pm-legend">${st.events.map((ev, i) => `${esc(BT.eventCode(ev, i))}＝${esc(ev.name)}`).join('　')}</p>`;
+    return h + '</div>';
   };
 
-  R.pmEntries = (c) => {
+  R.pmNotes = (t) => (String(t.programNotes || '').trim() ? `<div class="pm-block"><div class="pm-notes-h">★試合方式・注意事項</div><div class="pm-notes">${nl2br(t.programNotes)}</div></div>` : '');
+
+  R.pmEntries = (c, L) => {
     const st = c.state;
-    let h = '<section class="pm-page"><h2 class="pm-h">参 加 者 一 覧</h2>';
+    const per = Math.max(2, +L.teamPerRow || 6);
+    const icol = Math.max(1, +L.indCols || 1);
+    let h = '<div class="pm-block"><h2 class="pm-h">参 加 者 一 覧</h2>';
     st.events.forEach((ev) => {
       const list = st.entries.filter((e) => e.eventId === ev.id && !e.withdrawn);
       if (!list.length) return;
       if (BT.isTeamEv(ev)) {
         h += `<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}　<span>計 ${list.length} チーム</span></div>`;
-        for (let i = 0; i < list.length; i += 6) {
-          const chunk = list.slice(i, i + 6);
-          h += `<table class="pm-team"><tr><th>チーム名</th>${chunk.map((e) => `<td class="pm-tn">${esc(e.teamName || BT.entryTeam(e))}</td>`).join('')}${'<td class="pm-tn"></td>'.repeat(6 - chunk.length)}</tr>
-            <tr><th>メンバー</th>${chunk.map((e) => `<td>${BT.memberNames(e).map(esc).join('<br>')}</td>`).join('')}${'<td></td>'.repeat(6 - chunk.length)}</tr></table>`;
+        for (let i = 0; i < list.length; i += per) {
+          const chunk = list.slice(i, i + per);
+          const pad = per - chunk.length;
+          h += `<table class="pm-team"><tr><th>チーム名</th>${chunk.map((e) => `<td class="pm-tn">${esc(e.teamName || BT.entryTeam(e))}</td>`).join('')}${'<td class="pm-tn"></td>'.repeat(pad)}</tr>
+            <tr><th>メンバー</th>${chunk.map((e) => `<td>${BT.memberNames(e).map(esc).join('<br>')}</td>`).join('')}${'<td></td>'.repeat(pad)}</tr></table>`;
         }
         h += '</div>';
       } else {
-        h += `<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}　<span>計 ${list.length} ${ev.type === 'singles' ? '名' : '組'}</span></div>
-          <table class="pm-ind"><thead><tr><th>No</th><th>氏名</th><th>所属</th></tr></thead><tbody>${list.map((e, k) => `<tr><td>${k + 1}</td><td>${esc(BT.entryNames(e))}</td><td>${esc(BT.entryTeam(e))}</td></tr>`).join('')}</tbody></table></div>`;
+        const size = Math.ceil(list.length / icol);
+        const parts = Array.from({ length: icol }, (_, k) => list.slice(k * size, (k + 1) * size)).filter((p) => p.length);
+        h += `<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}　<span>計 ${list.length} ${ev.type === 'singles' ? '名' : '組'}</span></div><div class="pm-grid" style="--cols:${icol};gap:0 10px">`;
+        parts.forEach((part, k) => {
+          h += `<table class="pm-ind"><thead><tr><th>No</th><th>氏名</th><th>所属</th></tr></thead><tbody>${part.map((e, j) => `<tr><td>${k * size + j + 1}</td><td>${esc(BT.entryNames(e))}</td><td>${esc(BT.entryTeam(e))}</td></tr>`).join('')}</tbody></table>`;
+        });
+        h += '</div></div>';
       }
     });
-    return h + '</section>';
+    return h + '</div>';
   };
 
   // 対戦表（リーグ）：右上に試合コード、左下はスコア記入欄
@@ -394,23 +430,59 @@
     return h + '</table>';
   };
 
-  R.pmDraws = (c) => {
+  R.pmDraws = (c, L) => {
     const st = c.state;
-    let h = '<section class="pm-page"><h2 class="pm-h">対 戦 表</h2>';
+    const lc = Math.max(1, +L.leagueCols || 1);
+    let h = '<div class="pm-block"><h2 class="pm-h">対 戦 表</h2>';
+    const leagues = [];
+    const brackets = [];
     st.events.forEach((ev) => {
       const d = st.draws[ev.id];
       if (!d) return;
-      (d.groups || []).forEach((g) => { h += `<div class="pm-lg-box">${R.pmLeague(c, ev, g, ev.name + (d.groups.length > 1 ? ` ${g.name}組` : ''))}</div>`; });
+      (d.groups || []).forEach((g) => leagues.push(`<div class="pm-lg-box">${R.pmLeague(c, ev, g, ev.name + (d.groups.length > 1 ? ` ${g.name}組` : ''))}</div>`));
       const b = R.bracket(c, ev, { blank: true, code: true });
-      if (b) h += `<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}${(d.groups || []).length ? '　決勝トーナメント' : ''}</div>${b}</div>`;
+      if (b) brackets.push(`<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}${(d.groups || []).length ? '　決勝トーナメント' : ''}</div>${b}</div>`);
     });
-    return h + '</section>';
+    if (leagues.length) h += `<div class="pm-grid pm-lg-grid${lc > 1 ? ' pm-lg-small' : ''}" style="--cols:${lc}">${leagues.join('')}</div>`;
+    return h + brackets.join('') + '</div>';
   };
 
   R.pamphlet = (state) => {
     const c = BT.ctx(state), t = state.tournament;
-    const p = Object.assign({ cover: true, officers: true, timetable: true, entries: true, draws: true }, t.pamphlet || {});
-    return `<div class="pm">${p.cover ? R.pmCover(t) : ''}${p.officers ? R.pmOfficers(t) : ''}${p.timetable ? R.pmTimetable(c) : ''}${p.entries ? R.pmEntries(c) : ''}${p.draws ? R.pmDraws(c) : ''}</div>`;
+    const L = R.pmLayout(t);
+    const pages = [];
+    let cur = '';
+    const flush = () => { if (cur) pages.push(cur); cur = ''; };
+    const done = new Set();
+    L.order.forEach((k) => {
+      if (!L.show[k] || done.has(k)) return;
+      done.add(k);
+      let html = '';
+      if (k === 'cover') { flush(); pages.push(`<div class="pm-cover-wrap">${R.pmCover(t)}</div>`); return; }
+      if (k === 'officers' && L.sideBySide && L.show.agenda && !done.has('agenda')) {
+        done.add('agenda');
+        html = `<div class="pm-side">${R.pmOfficers(t, 1)}${R.pmAgenda(t, 1)}</div>`;
+        cur += html;
+        if (L.breakAfter.officers || L.breakAfter.agenda) flush();
+        return;
+      }
+      if (k === 'agenda' && L.sideBySide && L.show.officers && !done.has('officers')) {
+        done.add('officers');
+        cur += `<div class="pm-side">${R.pmAgenda(t, 1)}${R.pmOfficers(t, 1)}</div>`;
+        if (L.breakAfter.officers || L.breakAfter.agenda) flush();
+        return;
+      }
+      if (k === 'officers') html = R.pmOfficers(t, Math.max(1, +L.officersCols || 1));
+      if (k === 'agenda') html = R.pmAgenda(t, Math.max(1, +L.agendaCols || 1));
+      if (k === 'timetable') html = R.pmTimetable(c);
+      if (k === 'notes') html = R.pmNotes(t);
+      if (k === 'entries') html = R.pmEntries(c, L);
+      if (k === 'draws') html = R.pmDraws(c, L);
+      cur += html;
+      if (L.breakAfter[k]) flush();
+    });
+    flush();
+    return `<div class="pm${L.dense ? ' pm-dense' : ''}">${pages.map((p) => `<section class="pm-page">${p}</section>`).join('')}</div>`;
   };
 
   // ---------- スプレッドシート用の表データ ----------
@@ -436,7 +508,7 @@
         ev.games, ev.points, ev.fee, ev.capacity, ev.courts, ev.minutes, BT.isTeamEv(ev) ? BT.rubberList(ev).join('・') : '', BT.isTeamEv(ev) ? `${ev.teamMin}〜${ev.teamMax}` : '',
         ev.thirdPlace ? 'あり' : '', ev.note, state.entries.filter((e) => e.eventId === ev.id && !e.withdrawn).length]));
 
-    const SRC = { web: 'Web', csv: 'CSV', manual: '手入力' };
+    const SRC = { web: 'Web', csv: 'CSV', excel: 'Excel', manual: '手入力' };
     out['申込一覧'] = [['種目', 'No', 'シード', 'チーム名', '選手・メンバー', 'フリガナ', '所属', '代表者', 'メール', '電話', '備考', '受付方法', '棄権', '申込ID']];
     state.events.forEach((ev) => state.entries.filter((e) => e.eventId === ev.id).forEach((en, i) => {
       const ps = (en.players || []).filter((p) => p && p.name);

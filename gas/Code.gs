@@ -89,11 +89,14 @@ function sharePage_(kind, tid) {
   const ss = openT_(tid);
   const snap = ss && readStore_(ss, 'public');
   const t = snap ? (JSON.parse(snap).tournament || {}) : {};
-  const isApply = kind !== 'view';
+  const isForm = kind === 'form';
+  const isApply = kind === 'apply' || isForm;
   const name = t.name || '大会';
-  const title = name + (isApply ? '　参加申込' : '　組み合わせ・結果');
+  const title = name + (isForm ? '　参加申込書（Excel）' : isApply ? '　参加申込' : '　組み合わせ・結果');
   const self = ScriptApp.getService().getUrl();
-  const target = APP_URL + (isApply ? 'apply.html' : 'view.html') + '?api=' + encodeURIComponent(self) + '&t=' + encodeURIComponent(tid || '');
+  const q = '?api=' + encodeURIComponent(self) + '&t=' + encodeURIComponent(tid || '');
+  const target = APP_URL + (isForm ? 'form.html' : isApply ? 'apply.html' : 'view.html') + q;
+  const second = isApply ? (isForm ? ['Webで申し込む場合はこちら', APP_URL + 'apply.html' + q] : ['Excelの申込書はこちら', APP_URL + 'form.html' + q]) : null;
   const rows = [];
   if (t.date) rows.push(['期日', fmtDate_(t.date)]);
   if (t.venue) rows.push(['場所', t.venue]);
@@ -103,9 +106,10 @@ function sharePage_(kind, tid) {
     '.w{max-width:520px;margin:0 auto;padding:28px 18px}.c{background:#fff;border:1px solid #dde2ea;border-radius:12px;padding:22px}' +
     'h1{font-size:1.3rem;margin:0 0 4px}.s{color:#6b7385;margin:0 0 16px}table{border-collapse:collapse;margin:0 0 20px}td{padding:4px 12px 4px 0;vertical-align:top}' +
     'td:first-child{color:#6b7385;white-space:nowrap}a.b{display:block;text-align:center;background:#1f6feb;color:#fff;text-decoration:none;font-weight:700;padding:14px;border-radius:10px;font-size:1.05rem}</style></head>' +
-    '<body><div class="w"><div class="c"><div style="font-size:2rem">🏸</div><h1>' + esc_(name) + '</h1><p class="s">' + (isApply ? '参加申込' : '組み合わせ・タイムテーブル・結果') + '</p>' +
+    '<body><div class="w"><div class="c"><div style="font-size:2rem">🏸</div><h1>' + esc_(name) + '</h1><p class="s">' + (isForm ? '参加申込書（Excel）' : isApply ? '参加申込' : '組み合わせ・タイムテーブル・結果') + '</p>' +
     (snap ? '<table>' + rows.map(function (r) { return '<tr><td>' + esc_(r[0]) + '</td><td>' + esc_(r[1]) + '</td></tr>'; }).join('') + '</table>' +
-      '<a class="b" href="' + esc_(target) + '">' + (isApply ? '申込ページを開く' : '大会ページを開く') + '</a>'
+      '<a class="b" href="' + esc_(target) + '">' + (isForm ? '申込書（Excel）をダウンロード' : isApply ? '申込ページを開く' : '大会ページを開く') + '</a>' +
+      (second ? '<p style="text-align:center;margin:14px 0 0"><a href="' + esc_(second[1]) + '">' + esc_(second[0]) + '</a></p>' : '')
       : '<p>この大会の情報はまだ公開されていません。</p>') +
     '</div></div></body></html>';
   return HtmlService.createHtmlOutput(html).setTitle(title)

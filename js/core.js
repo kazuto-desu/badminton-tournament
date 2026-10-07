@@ -45,7 +45,7 @@
       titleSuffix: '実施要項', receptionTime: '', eventsText: '', fee: '',
       applyMethod: '別紙申し込み用紙に必要事項を記入のうえ、下記までメールまたはLINEで申し込み下さい。',
       deadlineNote: '※締切期限厳守でお願い致します', era: 'wareki', showEventTable: false,
-      applyUrl: '', showApplyQr: true,
+      applyUrl: '', showApplyQr: true, formUrl: '', showFormQr: false,
       // 当日配布パンフレット
       coverImage: '', programNotes: '',
       officers: [
@@ -630,7 +630,7 @@
   };
 
   // ---------- 試合コード（種目略称-番号。例: MA-1） ----------
-  BT.eventCode = (ev, i) => (ev && ev.code) || (ev ? ev.name : '') || BT.groupName(i || 0);
+  BT.eventCode = (ev, i) => (ev && ev.code) || BT.groupName(i || 0);
   BT.matchCode = (c, m) => {
     if (!c.codeMap) {
       c.codeMap = new Map();

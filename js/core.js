@@ -643,6 +643,23 @@
     return c.codeMap.get(m.id) || '';
   };
 
+  // ---------- テンプレート（大会の内容のみ。参加者・組み合わせ・結果は含めない） ----------
+  BT.TPL_CLEAR = ['date', 'deadline', 'apiUrl', 'apiKey', 'applyUrl', 'formUrl'];
+  BT.makeTemplate = (state, name) => {
+    const t = JSON.parse(JSON.stringify(state.tournament));
+    BT.TPL_CLEAR.forEach((k) => { t[k] = ''; });
+    return {
+      id: BT.uid('tp'), name: name || t.name || '（無題のテンプレート）', createdAt: Date.now(),
+      data: { tournament: t, events: JSON.parse(JSON.stringify(state.events)) },
+    };
+  };
+  BT.fromTemplate = (tpl) => {
+    const s = BT.newTournament();
+    s.tournament = Object.assign(s.tournament, JSON.parse(JSON.stringify(tpl.data.tournament || {})));
+    s.events = (tpl.data.events || []).map((e) => Object.assign(BT.newEvent(), JSON.parse(JSON.stringify(e)), { id: BT.uid('e') }));
+    return s;
+  };
+
   // ---------- 公開用スナップショット（個人連絡先を除く） ----------
   BT.publicSnapshot = (state) => {
     const t = Object.assign({}, state.tournament);

@@ -38,6 +38,9 @@
   // LINE・メールで送る用（Google側の案内ページ。リンクのプレビューに大会名が出る）
   const shareUrl = (kind) => (API().url ? API().url + '?share=' + kind + '&t=' + encodeURIComponent(S.id) : '');
 
+  const getTpls = () => { try { return JSON.parse(LS.get('bt.templates')) || []; } catch (e) { return []; } };
+  const setTpls = (l) => LS.set('bt.templates', JSON.stringify(l));
+
   let S = null;
   let ui = (() => { try { return JSON.parse(LS.get('bt.ui')) || {}; } catch (e) { return {}; } })();
   ui = Object.assign({ tab: 'guide', evFilter: '', ttView: 'grid', ttEv: '', runEv: '', runFilter: 'pending', swap: {} }, ui);
@@ -472,9 +475,57 @@
       <div class="card"><h3>データの保存・バックアップ</h3>
       <p class="small muted">作業中のデータはこのブラウザにも自動保存されます。</p>
       <div class="row">${linked() ? '<button class="btn primary" data-act="cloudLoad">Googleから大会を読み込む</button>' : ''}<button class="btn" data-act="exportJson">ファイルに書き出し（JSON）</button><label class="btn">ファイルから読み込み<input type="file" accept=".json,application/json" id="jsonFile" hidden></label></div></div>
+      <div class="card"><h3>テンプレート</h3>
+      <p class="small muted">大会の内容（要項・種目・パンフレットの設定など）だけを保存し、次の大会を作るときに使えます。申込・組み合わせ・結果、期日・申込期限は含みません。</p>
+      <div class="row"><button class="btn primary" data-act="saveTpl">この大会をテンプレートとして登録</button><button class="btn" data-act="newT">テンプレートから新しい大会を作成</button></div>
+      <div id="tplList" style="margin-top:10px">${tplListHTML()}</div></div>
       <div class="card"><h3>大会の管理</h3><div class="row"><button class="btn" data-act="newT">新しい大会を作成</button><button class="btn" data-act="dupT">この大会を複製（要項・種目のみ）</button><button class="btn" data-act="demo">デモデータで新規作成</button><span class="spacer"></span><button class="btn danger" data-act="delT">この大会をこのブラウザから削除</button></div>
       <p class="small muted">ブラウザから削除しても、Googleのスプレッドシートは残ります。</p></div>`;
   };
+
+  function tplListHTML() {
+    const l = getTpls();
+    if (!l.length) return '<p class="small muted">このブラウザに登録されたテンプレートはありません。' + (linked() ? '（Googleに保存されたものは「テンプレートから新しい大会を作成」で表示されます）' : '') + '</p>';
+    return `<table class="tbl"><thead><tr><th>テンプレート名</th><th>種目</th><th>登録日</th><th></th></tr></thead><tbody>${l.map((t) => `<tr><td>${esc(t.name)}</td><td class="small">${esc(((t.data && t.data.events) || []).map((e) => e.name).join('、'))}</td><td class="small">${new Date(t.createdAt).toLocaleDateString('ja-JP')}</td><td><button class="btn sm danger" data-act="delTpl" data-id="${t.id}" data-name="${esc(t.name)}">削除</button></td></tr>`).join('')}</tbody></table>`;
+  }
+
+  // 新しい大会：白紙 or テンプレートから
+  async function chooseNew() {
+    let list = getTpls().map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt, local: t }));
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    const draw = (note) => {
+      bg.innerHTML = `<div class="modal"><h3>新しい大会を作成</h3>
+        <div class="tpl-pick"><button class="btn" data-n="blank">白紙から作成</button>
+        ${list.map((t) => `<button class="btn" data-n="${t.id}"><b>${esc(t.name)}</b><span class="small muted">${t.local ? '' : 'Google　'}${t.createdAt ? new Date(t.createdAt).toLocaleDateString('ja-JP') : ''}</span></button>`).join('')}</div>
+        <p class="small muted">${note || ''}テンプレートから作ると、要項・種目・パンフレットの設定が入った状態で始まります（期日・申込期限は空欄）。</p>
+        <div class="foot"><button class="btn" data-n="close">閉じる</button></div></div>`;
+    };
+    draw(linked() ? 'Googleのテンプレートを確認中…<br>' : '');
+    document.body.appendChild(bg);
+    if (linked()) {
+      try {
+        const g = (await BTAPI.listTemplates(API().url, API().key)).list || [];
+        g.forEach((x) => { if (!list.some((y) => y.id === x.id)) list.push(x); });
+        draw('');
+      } catch (e) { draw(`Googleのテンプレートを読み込めませんでした（${esc(e.message)}）<br>`); }
+    }
+    bg.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-n]');
+      if (e.target === bg || (b && b.dataset.n === 'close')) { bg.remove(); return; }
+      if (!b) return;
+      if (b.dataset.n === 'blank') { bg.remove(); createNew(); return; }
+      const item = list.find((x) => x.id === b.dataset.n);
+      let tpl = item && item.local;
+      try {
+        if (!tpl) { b.disabled = true; tpl = (await BTAPI.loadTemplate(API().url, API().key, item.id)).template; }
+        if (!tpl) throw new Error('テンプレートが見つかりません');
+        bg.remove();
+        createNew(BT.fromTemplate(tpl));
+        toast(`テンプレート「${tpl.name}」から作成しました。期日・申込期限を入力してください`);
+      } catch (err) { alert('読み込めませんでした：' + err.message); b.disabled = false; }
+    });
+  }
 
   // ---------- 試合モーダル ----------
   function dependents(mid) {
@@ -929,7 +980,27 @@
         S = migrate(st.state); S.sheetUrl = item.url; save(true); render(); toast('読み込みました');
       } catch (e) { alert('読み込みに失敗：' + e.message); }
     },
-    newT() { createNew(); },
+    newT() { chooseNew(); },
+    async saveTpl() {
+      const name = prompt('テンプレートの名前', (S.tournament.name || '').replace(/^第\s*\d+\s*回\s*/, '') || '大会テンプレート');
+      if (!name) return;
+      const tpl = BT.makeTemplate(S, name);
+      const list = getTpls().filter((x) => x.name !== name);
+      list.unshift(tpl); setTpls(list);
+      let msg = `テンプレート「${name}」を登録しました。`;
+      if (linked()) {
+        try { const old = (await BTAPI.listTemplates(API().url, API().key)).list.find((x) => x.name === name); if (old) await BTAPI.deleteTemplate(API().url, API().key, old.id); await BTAPI.saveTemplate(API().url, API().key, tpl); msg += '（Googleにも保存しました）'; }
+        catch (e) { msg += `\n※Googleへの保存に失敗しました：${e.message}`; }
+      }
+      render(); alert(msg);
+    },
+    async delTpl(el) {
+      const t = getTpls().find((x) => x.id === el.dataset.id) || { id: el.dataset.id, name: el.dataset.name };
+      if (!confirm(`テンプレート「${t.name}」を削除しますか？（作成済みの大会には影響しません）`)) return;
+      setTpls(getTpls().filter((x) => x.id !== t.id));
+      if (linked()) { try { await BTAPI.deleteTemplate(API().url, API().key, t.id); } catch (e) { /* ブラウザ分は削除済み */ } }
+      render();
+    },
     dupT() {
       const s = BT.newTournament();
       s.tournament = Object.assign({}, JSON.parse(JSON.stringify(S.tournament)), { name: S.tournament.name + '（コピー）' });
@@ -1061,7 +1132,7 @@
     r.readAsText(f, 'utf-8');
   }
   $('#tSelect').addEventListener('change', (e) => switchTo(e.target.value));
-  $('#btnNew').addEventListener('click', () => createNew());
+  $('#btnNew').addEventListener('click', () => chooseNew());
   window.addEventListener('storage', (e) => { if (S && e.key === 'bt.t.' + S.id && e.newValue) { S = migrate(JSON.parse(e.newValue)); render(); } });
 
   // ---------- 起動 ----------

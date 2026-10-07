@@ -70,6 +70,10 @@ function doPost(e) {
       case 'entries': { auth_(b.key); const ss = openT_(b.t); return json_({ ok: true, entries: ss ? webEntries_(ss) : [] }); }
       case 'loadState': { auth_(b.key); const ss = openT_(b.t); const s = ss && readStore_(ss, 'state'); return json_({ ok: true, state: s ? JSON.parse(s) : null }); }
       case 'list': auth_(b.key); return json_({ ok: true, list: list_() });
+      case 'saveTemplate': auth_(b.key); return json_(saveTpl_(b.template));
+      case 'listTemplates': auth_(b.key); return json_({ ok: true, list: tplList_() });
+      case 'loadTemplate': { auth_(b.key); const s = readStore_(indexSS_(), 'tpl:' + b.id); return json_({ ok: true, template: s ? JSON.parse(s) : null }); }
+      case 'deleteTemplate': { auth_(b.key); const ss = indexSS_(); writeStore_(ss, 'tpl:' + b.id, ''); writeStore_(ss, 'tpl_list', JSON.stringify(tplList_().filter(function (x) { return x.id !== b.id; }))); return json_({ ok: true }); }
       default: return json_({ ok: false, error: '不明な操作です' });
     }
   } catch (err) {
@@ -303,6 +307,22 @@ function webEntries_(ss) {
   return sh.getRange(2, 11, sh.getLastRow() - 1, 1).getValues()
     .map(function (r) { try { return JSON.parse(r[0]); } catch (e) { return null; } })
     .filter(function (x) { return x; });
+}
+
+// ===================== テンプレート =====================
+function tplList_() {
+  const s = readStore_(indexSS_(), 'tpl_list');
+  try { return s ? JSON.parse(s) : []; } catch (e) { return []; }
+}
+
+function saveTpl_(tpl) {
+  if (!tpl || !tpl.id || !tpl.data) throw new Error('テンプレートの内容がありません');
+  const ss = indexSS_();
+  writeStore_(ss, 'tpl:' + tpl.id, JSON.stringify(tpl));
+  const list = tplList_().filter(function (x) { return x.id !== tpl.id; });
+  list.unshift({ id: tpl.id, name: String(tpl.name || '').slice(0, 100), createdAt: tpl.createdAt || Date.now() });
+  writeStore_(ss, 'tpl_list', JSON.stringify(list));
+  return { ok: true };
 }
 
 // ===================== 補助 =====================

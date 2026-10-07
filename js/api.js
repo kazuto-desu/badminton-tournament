@@ -30,6 +30,11 @@
   API.entries = (url, key, t) => API.post(url, { action: 'entries', key, t });
   API.loadState = (url, key, t) => API.post(url, { action: 'loadState', key, t });
   API.list = (url, key) => API.post(url, { action: 'list', key });
+  // テンプレート（大会一覧のスプレッドシートに保存）
+  API.saveTemplate = (url, key, template) => API.post(url, { action: 'saveTemplate', key, template });
+  API.listTemplates = (url, key) => API.post(url, { action: 'listTemplates', key });
+  API.loadTemplate = (url, key, id) => API.post(url, { action: 'loadTemplate', key, id });
+  API.deleteTemplate = (url, key, id) => API.post(url, { action: 'deleteTemplate', key, id });
 
   global.BTAPI = API;
 })(window);

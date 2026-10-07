@@ -106,6 +106,7 @@
   const TABS = [['guide', '大会要項'], ['events', '種目'], ['entries', '申込'], ['draw', '組み合わせ'], ['time', 'タイムテーブル'], ['run', '進行・結果入力'], ['results', '結果'], ['settings', '設定・連携']];
 
   function render() {
+    if (S.sheetUrl && linked()) S.tournament.applyUrl = pageUrl('apply.html');
     refreshSelector();
     $('#tabs').innerHTML = TABS.map(([k, lb], i) => `<button data-tab="${k}" class="${ui.tab === k ? 'active' : ''}"><span class="num">${i + 1}</span>${lb}</button>`).join('');
     const sc = window.scrollY;
@@ -160,6 +161,9 @@
       </div>
       <h3 style="margin-top:20px">申し込み</h3><div class="grid">
       ${field('申し込み方法', t + 'applyMethod', { type: 'textarea', cls: 'wide', rows: 2 })}
+      <div class="wide row"><button class="btn sm" data-act="applyTextWeb">Web申込用の文例にする</button><button class="btn sm" data-act="applyTextMail">メール・LINE申込用の文例にする</button></div>
+      <div class="wide">${field('Web申込のURLとQRコードを要項に載せる', t + 'showApplyQr', { type: 'checkbox', rerender: true })}
+        <div class="small muted">${T.applyUrl ? '申込ページのQRコードが「申し込み」の欄に入ります。印刷した要項からスマートフォンで申し込めます。' : 'この大会を「⑧設定・連携」でGoogleに保存すると、申込ページのURLとQRコードが表示されます。'}</div></div>
       ${field('申し込み先（氏名）', t + 'contactName')}
       ${field('TEL', t + 'contactTel')}
       ${field('E-Mail', t + 'contactEmail', { type: 'email' })}
@@ -709,6 +713,8 @@
     },
     notesTemplate() { const T = S.tournament; T.notes = (T.notes ? T.notes + '\n' : '') + '要項に定めのない事については主催者一任のこと。\n競技中の事故につきましては一切の責任を持ちませんので各自ご了承下さい。'; save(); render(); },
     qrDel() { S.tournament.contactQr = ''; save(); render(); },
+    applyTextWeb() { const T = S.tournament; T.applyMethod = '下記のQRコードまたはURLから、Webで申し込み下さい。\n・メールまたはLINEでの申し込みも受け付けます。'; T.showApplyQr = true; save(); render(); },
+    applyTextMail() { const T = S.tournament; T.applyMethod = '別紙申し込み用紙に必要事項を記入のうえ、下記までメールまたはLINEで申し込み下さい。'; save(); render(); },
     addSection() { S.tournament.extraSections.push({ title: '', body: '' }); save(); render(); },
     delSection(el) { S.tournament.extraSections.splice(+el.dataset.i, 1); save(); render(); },
     printGuide() { printHTML(S.tournament.name + ' 要項', BTR.guide(S)); },

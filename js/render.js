@@ -43,6 +43,15 @@
     return { fm, rule };
   };
 
+  // QRコード（画像のdata URL）。ライブラリが読み込めない場合は空
+  R.qrDataUrl = (text) => {
+    try {
+      if (typeof qrcode !== 'function') return '';
+      const q = qrcode(0, 'M'); q.addData(text); q.make();
+      return q.createDataURL(4, 4);
+    } catch (e) { return ''; }
+  };
+
   // 1行目を本文、2行目以降を字下げの補足として表示
   const lines = (text, boldFirst) => {
     const ls = String(text || '').split('\n').filter((l, i) => i === 0 || l.trim());
@@ -86,6 +95,13 @@
         <div class="g-box-row"><span class="g-box-name">${esc(t.contactName)}</span>${t.contactTel ? `<span>TEL：${esc(t.contactTel)}</span>` : ''}${t.contactEmail ? `<span>E-Mail：${esc(t.contactEmail)}</span>` : ''}</div>
         ${t.contactLine ? `<div class="g-box-row"><span class="g-box-name"></span><span>LINE：${esc(t.contactLine)}</span></div>` : ''}</div>
         ${t.contactQr ? `<img class="g-qr" src="${esc(t.contactQr)}" alt="QRコード">` : ''}</div>`;
+    }
+    if (t.showApplyQr !== false && t.applyUrl) {
+      const qr = R.qrDataUrl(t.applyUrl);
+      ap += `<div class="g-main">Web申し込み</div><div class="g-box"><div class="g-box-txt">
+        <div>右のQRコードをスマートフォンで読み取るか、下記URLから申し込み下さい。</div>
+        <div class="g-url">${esc(t.applyUrl)}</div></div>
+        ${qr ? `<img class="g-qr" src="${qr}" alt="申込ページのQRコード">` : ''}</div>`;
     }
     add('申し込み', ap);
     if (t.deadline) add('申込期限', `<div class="g-main g-strong">${esc(fd(t.deadline))}</div>${t.deadlineNote ? `<div class="g-main g-strong">${esc(t.deadlineNote)}</div>` : ''}`);

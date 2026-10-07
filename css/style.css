@@ -177,7 +177,8 @@ svg.bracket .mhit:hover rect { fill: rgba(31,111,235,.08); }
 .g-box-txt { flex: 1; }
 .g-box-row { display: flex; flex-wrap: wrap; gap: 4px 2.2em; }
 .g-box-name { min-width: 6em; }
-.g-qr { width: 104px; height: 104px; object-fit: contain; margin-left: auto; }
+.g-qr { width: 124px; height: 124px; object-fit: contain; margin-left: auto; image-rendering: pixelated; }
+.g-url { font-size: .72em; word-break: break-all; color: #333; margin-top: 4px; line-height: 1.4; }
 .guide-ev { margin-top: 6px; }
 .guide-ev td, .guide-ev th { font-size: .82rem; }
 .qr-prev { width: 64px; height: 64px; object-fit: contain; border: 1px solid var(--line); border-radius: 4px; }

@@ -266,6 +266,7 @@ function apply_(tid, entry) {
   }
   const players = (entry.players || []).filter(function (p) { return p && String(p.name || '').trim(); });
   if (!players.length) return { ok: false, error: '選手名を入力してください' };
+  if (!String(entry.contactEmail || '').trim() && !String(entry.contactTel || '').trim()) return { ok: false, error: '申込責任者のメールアドレスか電話番号のどちらかを入力してください' };
   const isTeam = ev.type === 'team';
   if (isTeam && !String(entry.teamName || '').trim()) return { ok: false, error: 'チーム名を入力してください' };
   if (isTeam && ev.teamMin && players.length < +ev.teamMin) return { ok: false, error: 'メンバーは' + ev.teamMin + '名以上必要です' };

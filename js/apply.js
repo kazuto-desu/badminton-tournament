@@ -47,8 +47,9 @@
         <div id="players"></div>
         <h4>申込責任者（大会からの連絡先）</h4>
         <div class="grid"><label class="f"><span>氏名 *</span><input name="contactName" required></label>
-        <label class="f"><span>メールアドレス *</span><input type="email" name="contactEmail" required></label>
-        <label class="f"><span>電話番号</span><input type="tel" name="contactTel"></label>
+        <label class="f"><span>メールアドレス</span><input type="email" name="contactEmail" autocomplete="email"></label>
+        <label class="f"><span>電話番号</span><input type="tel" name="contactTel" autocomplete="tel"></label>
+        <p class="small wide" style="margin:0">※メールアドレスか電話番号の<b>どちらか一方は必須</b>です。</p>
         <label class="f wide"><span>備考</span><textarea name="memo" rows="2"></textarea></label></div>
         <p class="small muted">ご入力の個人情報は本大会の運営（組み合わせ・プログラム作成、連絡）にのみ使用します。選手氏名と所属は組み合わせ表・結果として公開されます。</p>
         <label class="chk"><input type="checkbox" name="agree" required> 上記に同意して申し込みます</label>
@@ -66,6 +67,11 @@
       const ev = evs.find((x) => x.id === sel.value);
       if (!ev) return;
       const fd = new FormData(f);
+      if (!String(fd.get('contactEmail') || '').trim() && !String(fd.get('contactTel') || '').trim()) {
+        document.getElementById('msg').innerHTML = '<div class="notice err">申込責任者のメールアドレスか電話番号のどちらかを入力してください。</div>';
+        f.contactEmail.focus();
+        return;
+      }
       const n = BT.playerCount(ev);
       const team = BT.isTeamEv(ev);
       const entry = {

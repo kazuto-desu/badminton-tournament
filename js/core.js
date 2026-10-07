@@ -46,6 +46,17 @@
       applyMethod: '別紙申し込み用紙に必要事項を記入のうえ、下記までメールまたはLINEで申し込み下さい。',
       deadlineNote: '※締切期限厳守でお願い致します', era: 'wareki', showEventTable: false,
       applyUrl: '', showApplyQr: true,
+      // 当日配布パンフレット
+      coverImage: '', programNotes: '',
+      officers: [
+        { role: '大会会長', org: '', name: '' }, { role: '大会副会長', org: '', name: '' }, { role: '顧問', org: '', name: '' },
+        { role: '事務局長', org: '', name: '' }, { role: '審判長', org: '', name: '' }, { role: '大会委員', org: '', name: '' },
+      ],
+      agenda: [
+        { item: '開場', time: '8:30～', note: '' }, { item: '受付', time: '8:40～', note: '' }, { item: '練習', time: '準備ができ次第', note: '' },
+        { item: '開会式', time: '9:25～', note: '' }, { item: '試合開始', time: '9:30～', note: '' },
+      ],
+      pamphlet: { cover: true, officers: true, timetable: true, entries: true, draws: true },
       courts: 6, startTime: '09:00', matchMinutes: 20, restMinutes: 10,
       autoPublish: true, acceptApply: true,
     },
@@ -59,7 +70,7 @@
   BT.newEvent = () => ({
     id: BT.uid('e'), name: '', type: 'doubles', format: 'tournament',
     groupSize: 4, advance: 1, thirdPlace: false,
-    games: 3, points: 21, fee: '', capacity: '', courts: '', note: '', minutes: '',
+    games: 3, points: 21, fee: '', capacity: '', courts: '', note: '', minutes: '', code: '',
     // 団体戦
     rubbers: '第1ダブルス,第2ダブルス,シングルス', teamMin: 3, teamMax: 6, playAll: false,
   });
@@ -618,10 +629,24 @@
     return { unscheduled: pending.length };
   };
 
+  // ---------- 試合コード（種目略称-番号。例: MA-1） ----------
+  BT.eventCode = (ev, i) => (ev && ev.code) || (ev ? ev.name : '') || BT.groupName(i || 0);
+  BT.matchCode = (c, m) => {
+    if (!c.codeMap) {
+      c.codeMap = new Map();
+      c.state.events.forEach((ev, i) => {
+        const ms = c.state.matches.filter((x) => x.eventId === ev.id && !(x.a && x.a.bye) && !(x.b && x.b.bye))
+          .sort((x, y) => ((x.no || 1e9) - (y.no || 1e9)) || (BT.phaseRank(c, x) - BT.phaseRank(c, y)) || (String(x.group || '').localeCompare(String(y.group || ''))) || (x.idx - y.idx));
+        ms.forEach((x, k) => c.codeMap.set(x.id, BT.eventCode(ev, i) + '-' + (k + 1)));
+      });
+    }
+    return c.codeMap.get(m.id) || '';
+  };
+
   // ---------- 公開用スナップショット（個人連絡先を除く） ----------
   BT.publicSnapshot = (state) => {
     const t = Object.assign({}, state.tournament);
-    delete t.apiKey; delete t.apiUrl; delete t.autoPublish;
+    delete t.apiKey; delete t.apiUrl; delete t.autoPublish; delete t.coverImage;
     return {
       tournament: t,
       events: state.events,

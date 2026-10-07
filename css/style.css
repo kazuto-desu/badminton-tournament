@@ -223,3 +223,50 @@ svg.bracket .mhit:hover rect { fill: rgba(31,111,235,.08); }
 .rub .score-grid { margin-top: 4px; }
 .rub .score-grid input { font-size: 1rem; }
 .rub input.rp { font-size: .88rem; text-align: left; padding: 5px 7px; }
+
+/* ---------- 当日配布パンフレット ---------- */
+.pm { color: #000; }
+.pm-page { background: #fff; width: 794px; min-height: 1123px; margin: 0 auto 18px; padding: 60px 64px; border: 1px solid var(--line); box-sizing: border-box; font-size: 13px; }
+.pm-cover { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.pm-cover h1 { font-size: 2rem; font-weight: 500; margin: 30px 0 20px; }
+.pm-cover-img { max-width: 100%; max-height: 560px; object-fit: contain; margin: 10px 0 30px; }
+.pm-cover-space { height: 480px; }
+.pm-cover-info { margin-top: auto; margin-bottom: 60px; border-collapse: collapse; font-size: 1.05rem; }
+.pm-cover-info th, .pm-cover-info td { padding: 8px 14px; text-align: left; font-weight: 500; }
+.pm-cover-info th { width: 4em; }
+.pm-sp { display: inline-block; width: 100%; text-align: justify; text-align-last: justify; }
+.pm-h { text-align: center; font-size: 1.05rem; letter-spacing: .15em; margin: 10px 0 22px; }
+.pm-list { border-collapse: collapse; margin: 0 auto 50px; min-width: 70%; }
+.pm-list th { width: 7em; padding: 9px 2em 9px 0; font-weight: 500; vertical-align: top; }
+.pm-list td { padding: 9px 1.5em 9px 0; vertical-align: top; }
+.pm-tt { border-collapse: collapse; margin: 0 auto; min-width: 80%; }
+.pm-tt th, .pm-tt td { border: 1px solid #000; padding: 5px 8px; text-align: center; font-weight: 400; }
+.pm-tt tbody th { text-align: right; width: 4em; }
+.pm-legend { font-size: .82rem; text-align: center; margin: 8px 0 22px; }
+.pm-notes-h { margin: 16px 0 4px; }
+.pm-notes { border: 1px solid #000; padding: 8px 10px; line-height: 2; }
+.pm-ev { margin-bottom: 18px; break-inside: avoid; }
+.pm-ev-h { font-weight: 700; margin-bottom: 3px; }
+.pm-ev-h span { font-weight: 400; font-size: .9em; }
+.pm-team { border-collapse: collapse; width: 100%; table-layout: fixed; margin-bottom: 6px; font-size: 12px; }
+.pm-team th, .pm-team td { border: 1px solid #000; padding: 3px 4px; text-align: center; vertical-align: top; font-weight: 400; }
+.pm-team th { width: 5em; white-space: nowrap; }
+.pm-team td.pm-tn { word-break: break-all; font-weight: 500; }
+.pm-ind { border-collapse: collapse; width: 100%; font-size: 12px; }
+.pm-ind th, .pm-ind td { border: 1px solid #000; padding: 3px 6px; font-weight: 400; }
+.pm-ind td:first-child { width: 2.5em; text-align: center; }
+.pm-lg-box { margin: 0 auto 34px; break-inside: avoid; display: flex; justify-content: center; }
+.pm-lg { border-collapse: collapse; font-size: 11px; }
+.pm-lg th, .pm-lg td { border: 1px solid #000; width: 78px; height: 34px; padding: 2px 3px; text-align: center; font-weight: 400; word-break: break-all; }
+.pm-lg th.pm-lg-t { font-size: 14px; font-weight: 700; }
+.pm-lg th.pm-lg-x { width: 40px; }
+.pm-lg td.pm-diag { background: linear-gradient(to top right, transparent calc(50% - .6px), #000 50%, transparent calc(50% + .6px)); }
+.pm-code { font-size: 10px; }
+.pm .bracket-wrap { border: 0; padding: 0; overflow: visible; }
+.pm svg.bracket { max-width: 100%; height: auto; }
+.a4-preview { overflow: hidden; }
+@media print {
+  .pm-page { border: 0; margin: 0; padding: 0 4mm; width: auto; min-height: 0; page-break-after: always; zoom: 1 !important; }
+  .pm-page:last-child { page-break-after: auto; }
+  .pm-cover { min-height: 265mm; }
+}

@@ -156,33 +156,34 @@
         const yB = r === 1 ? slotY(m.idx * 2 + 1) : yOf[byRound[r - 1][m.idx * 2 + 1].id];
         const ym = (yA + yB) / 2;
         yOf[m.id] = ym;
-        const w = BT.winnerSide(c, m);
         const auto = BT.isAuto(c, m);
+        const w = opts.blank ? null : BT.winnerSide(c, m);
         const x0 = r === 1 ? nameW - 6 : X(r - 1), x1 = X(r);
         svg += line(x0, yA, x1, yA, w === 'a');
         svg += line(x0, yB, x1, yB, w === 'b');
         svg += line(x1, yA, x1, ym, w === 'a');
         svg += line(x1, ym, x1, yB, w === 'b');
         if (!auto) {
-          const label = m.no ? `No.${m.no}` : '';
+          const label = opts.code ? BT.matchCode(c, m) : m.no ? `No.${m.no}` : '';
           svg += `<g class="mhit" data-mid="${m.id}"><rect x="${x1 - colW + 6}" y="${Math.min(yA, yB) + 2}" width="${colW - 8}" height="${Math.abs(yB - yA) - 4}" rx="4"/>`;
           if (label) svg += `<text x="${x1 - 4}" y="${ym - 4}" class="mno" text-anchor="end">${label}</text>`;
-          if (m.result) svg += `<text x="${x1 - 4}" y="${ym + 12}" class="msc" text-anchor="end">${esc(BT.scoreText(m, m.result === 'b'))}</text>`;
+          if (opts.blank) { /* 記入用：スコア・時刻は出さない */ }
+          else if (m.result) svg += `<text x="${x1 - 4}" y="${ym + 12}" class="msc" text-anchor="end">${esc(BT.scoreText(m, m.result === 'b'))}</text>`;
           else if (m.status === 'playing') svg += `<text x="${x1 - 4}" y="${ym + 12}" class="msc live" text-anchor="end">試合中 ${m.court ? m.court + 'コート' : ''}</text>`;
           else if (m.time != null) svg += `<text x="${x1 - 4}" y="${ym + 12}" class="msc" text-anchor="end">${BT.fmtMin(m.time)} / ${m.court}C</text>`;
           svg += '</g>';
         }
         if (r === RR) {
           svg += line(x1, ym, x1 + 30, ym, !!w);
-          if (w) { const lb = R.sideLabel(c, m[w]); svg += `<text x="${x1 + 36}" y="${ym + 5}" class="champ">🏆 ${esc(lb.text)}</text>`; }
+          if (w && !opts.blank) { const lb = R.sideLabel(c, m[w]); svg += `<text x="${x1 + 36}" y="${ym + 5}" class="champ">🏆 ${esc(lb.text)}</text>`; }
         }
       });
     }
     const third = ko.find((m) => m.third);
     if (third) {
       const y0 = top + N * rowH + 30;
-      const a = R.sideLabel(c, third.a), b = R.sideLabel(c, third.b), w = BT.winnerSide(c, third);
-      svg += `<text x="4" y="${y0 - 8}" class="mno">3位決定戦 ${third.no ? 'No.' + third.no : ''}</text>`;
+      const a = R.sideLabel(c, third.a), b = R.sideLabel(c, third.b), w = opts.blank ? null : BT.winnerSide(c, third);
+      svg += `<text x="4" y="${y0 - 8}" class="mno">3位決定戦 ${opts.code ? BT.matchCode(c, third) : third.no ? 'No.' + third.no : ''}</text>`;
       svg += `<text x="4" y="${y0 + 14}" class="nm${a.tbd ? ' tbd' : ''}">${esc(a.text)}</text><text x="4" y="${y0 + 44}" class="nm${b.tbd ? ' tbd' : ''}">${esc(b.text)}</text>`;
       svg += line(nameW - 6, y0 + 10, X(1), y0 + 10, w === 'a') + line(nameW - 6, y0 + 40, X(1), y0 + 40, w === 'b') + line(X(1), y0 + 10, X(1), y0 + 25, w === 'a') + line(X(1), y0 + 25, X(1), y0 + 40, w === 'b');
       svg += `<g class="mhit" data-mid="${third.id}"><rect x="${nameW}" y="${y0 + 12}" width="${colW - 8}" height="26" rx="4"/>${third.result ? `<text x="${X(1) - 4}" y="${y0 + 37}" class="msc" text-anchor="end">${esc(BT.scoreText(third, third.result === 'b'))}</text>` : ''}</g>`;
@@ -305,6 +306,111 @@
       const done = st.matches.filter((m) => m.eventId === ev.id && !BT.isAuto(c, m) && m.result).length;
       return `<section class="card res-card"><h3><span class="evdot" style="background:${R.evColor(c, ev.id)}"></span>${esc(ev.name)} <span class="muted small">${done}/${total}試合終了</span></h3>${body}</section>`;
     }).join('');
+  };
+
+  // ---------- 当日配布パンフレット ----------
+  const nl2br = (s) => esc(s).replace(/\n/g, '<br>');
+  const spaced = (s) => `<span class="pm-sp">${esc(s)}</span>`;
+
+  R.pmCover = (t) => `<section class="pm-page pm-cover">
+      <h1>${esc(t.name || '（大会名未設定）')}</h1>
+      ${t.coverImage ? `<img class="pm-cover-img" src="${esc(t.coverImage)}" alt="">` : '<div class="pm-cover-space"></div>'}
+      <table class="pm-cover-info">
+        ${t.date ? `<tr><th>${spaced('期日')}</th><td>${esc(R.fmtDate(t.date, t.era))}</td></tr>` : ''}
+        ${t.venue ? `<tr><th>${spaced('場所')}</th><td>${esc(t.venue)}</td></tr>` : ''}
+        ${t.organizer ? `<tr><th>${spaced('主催')}</th><td>${esc(t.organizer)}</td></tr>` : ''}
+        ${t.host ? `<tr><th>${spaced('主管')}</th><td>${esc(t.host)}</td></tr>` : ''}
+      </table></section>`;
+
+  R.pmOfficers = (t) => {
+    const off = (t.officers || []).filter((o) => o.role || o.name || o.org);
+    const ag = (t.agenda || []).filter((a) => a.item || a.time);
+    return `<section class="pm-page">
+      ${off.length ? `<h2 class="pm-h">（ 大 会 役 員 ）</h2><table class="pm-list">${off.map((o) => `<tr><th>${spaced(o.role)}</th><td>${nl2br(o.org)}</td><td>${nl2br(o.name)}</td></tr>`).join('')}</table>` : ''}
+      ${ag.length ? `<h2 class="pm-h">（ 大 会 次 第 ）</h2><table class="pm-list">${ag.map((a) => `<tr><th>${spaced(a.item)}</th><td>${esc(a.time)}${a.note ? `<div>${nl2br(a.note)}</div>` : ''}</td></tr>`).join('')}</table>` : ''}
+    </section>`;
+  };
+
+  R.pmTimetable = (c) => {
+    const st = c.state, t = st.tournament;
+    const C = Math.max(1, +t.courts || 1);
+    const ms = st.matches.filter((m) => m.time != null && m.court);
+    const times = [...new Set(ms.map((m) => m.time))].sort((a, b) => a - b);
+    let h = '<section class="pm-page"><h2 class="pm-h">タ イ ム テ ー ブ ル</h2>';
+    if (!times.length) h += '<p class="muted">タイムテーブル未作成</p>';
+    else {
+      h += `<table class="pm-tt"><thead><tr><th></th>${Array.from({ length: C }, (_, i) => `<th>${i + 1}</th>`).join('')}</tr></thead><tbody>`;
+      times.forEach((tm) => {
+        h += `<tr><th>${BT.fmtMin(tm)}</th>`;
+        for (let k = 1; k <= C; k++) { const m = ms.find((x) => x.time === tm && x.court === k); h += `<td>${m ? esc(BT.matchCode(c, m)) : ''}</td>`; }
+        h += '</tr>';
+      });
+      h += '</tbody></table>';
+      const legend = st.events.map((ev, i) => `${esc(BT.eventCode(ev, i))}＝${esc(ev.name)}`).join('　');
+      h += `<p class="pm-legend">${legend}</p>`;
+    }
+    if (String(t.programNotes || '').trim()) h += `<div class="pm-notes-h">★試合方式・注意事項</div><div class="pm-notes">${nl2br(t.programNotes)}</div>`;
+    return h + '</section>';
+  };
+
+  R.pmEntries = (c) => {
+    const st = c.state;
+    let h = '<section class="pm-page"><h2 class="pm-h">参 加 者 一 覧</h2>';
+    st.events.forEach((ev) => {
+      const list = st.entries.filter((e) => e.eventId === ev.id && !e.withdrawn);
+      if (!list.length) return;
+      if (BT.isTeamEv(ev)) {
+        h += `<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}　<span>計 ${list.length} チーム</span></div>`;
+        for (let i = 0; i < list.length; i += 6) {
+          const chunk = list.slice(i, i + 6);
+          h += `<table class="pm-team"><tr><th>チーム名</th>${chunk.map((e) => `<td class="pm-tn">${esc(e.teamName || BT.entryTeam(e))}</td>`).join('')}${'<td class="pm-tn"></td>'.repeat(6 - chunk.length)}</tr>
+            <tr><th>メンバー</th>${chunk.map((e) => `<td>${BT.memberNames(e).map(esc).join('<br>')}</td>`).join('')}${'<td></td>'.repeat(6 - chunk.length)}</tr></table>`;
+        }
+        h += '</div>';
+      } else {
+        h += `<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}　<span>計 ${list.length} ${ev.type === 'singles' ? '名' : '組'}</span></div>
+          <table class="pm-ind"><thead><tr><th>No</th><th>氏名</th><th>所属</th></tr></thead><tbody>${list.map((e, k) => `<tr><td>${k + 1}</td><td>${esc(BT.entryNames(e))}</td><td>${esc(BT.entryTeam(e))}</td></tr>`).join('')}</tbody></table></div>`;
+      }
+    });
+    return h + '</section>';
+  };
+
+  // 対戦表（リーグ）：右上に試合コード、左下はスコア記入欄
+  R.pmLeague = (c, ev, g, label) => {
+    const ids = g.entryIds.filter((id) => c.entry.has(id));
+    const ms = c.state.matches.filter((m) => m.eventId === ev.id && m.stage === 'L' && m.group === g.name);
+    const find = (x, y) => ms.find((m) => (m.a.e === x && m.b.e === y) || (m.a.e === y && m.b.e === x));
+    const nm = (id) => esc(BT.entryNames(c.entry.get(id)));
+    let h = `<table class="pm-lg"><tr><th class="pm-lg-t">${esc(label)}</th>${ids.map((id) => `<th>${nm(id)}</th>`).join('')}<th class="pm-lg-x">勝敗</th><th class="pm-lg-x">順位</th></tr>`;
+    ids.forEach((x, i) => {
+      h += `<tr><th>${nm(x)}</th>`;
+      ids.forEach((y, j) => {
+        if (i === j) { h += '<td class="pm-diag"></td>'; return; }
+        const m = find(x, y);
+        h += `<td>${j > i && m ? `<span class="pm-code">${esc(BT.matchCode(c, m))}</span>` : ''}</td>`;
+      });
+      h += '<td></td><td></td></tr>';
+    });
+    return h + '</table>';
+  };
+
+  R.pmDraws = (c) => {
+    const st = c.state;
+    let h = '<section class="pm-page"><h2 class="pm-h">対 戦 表</h2>';
+    st.events.forEach((ev) => {
+      const d = st.draws[ev.id];
+      if (!d) return;
+      (d.groups || []).forEach((g) => { h += `<div class="pm-lg-box">${R.pmLeague(c, ev, g, ev.name + (d.groups.length > 1 ? ` ${g.name}組` : ''))}</div>`; });
+      const b = R.bracket(c, ev, { blank: true, code: true });
+      if (b) h += `<div class="pm-ev"><div class="pm-ev-h">${esc(ev.name)}${(d.groups || []).length ? '　決勝トーナメント' : ''}</div>${b}</div>`;
+    });
+    return h + '</section>';
+  };
+
+  R.pamphlet = (state) => {
+    const c = BT.ctx(state), t = state.tournament;
+    const p = Object.assign({ cover: true, officers: true, timetable: true, entries: true, draws: true }, t.pamphlet || {});
+    return `<div class="pm">${p.cover ? R.pmCover(t) : ''}${p.officers ? R.pmOfficers(t) : ''}${p.timetable ? R.pmTimetable(c) : ''}${p.entries ? R.pmEntries(c) : ''}${p.draws ? R.pmDraws(c) : ''}</div>`;
   };
 
   // ---------- スプレッドシート用の表データ ----------

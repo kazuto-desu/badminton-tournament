@@ -105,7 +105,7 @@
   }
 
   // ---------- 描画 ----------
-  const TABS = [['guide', '大会要項'], ['events', '種目'], ['entries', '申込'], ['draw', '組み合わせ'], ['time', 'タイムテーブル'], ['run', '進行・結果入力'], ['results', '結果'], ['settings', '設定・連携']];
+  const TABS = [['guide', '大会要項'], ['events', '種目'], ['entries', '申込'], ['draw', '組み合わせ'], ['time', 'タイムテーブル'], ['pamphlet', 'パンフレット'], ['run', '進行・結果入力'], ['results', '結果'], ['settings', '設定・連携']];
 
   function render() {
     if (S.sheetUrl && linked()) S.tournament.applyUrl = pageUrl('apply.html');
@@ -123,9 +123,10 @@
 
   // 要項プレビューをA4幅のまま縮小表示（印刷と同じ改行位置になる）
   function fitGuide() {
-    const box = $('#guidePreview'); if (!box) return;
-    const doc = $('.guide-doc', box); if (!doc) return;
-    doc.style.zoom = Math.min(1, box.clientWidth / 794);
+    document.querySelectorAll('#guidePreview, .a4-preview').forEach((box) => {
+      const z = Math.min(1, box.clientWidth / 796);
+      box.querySelectorAll('.guide-doc, .pm-page').forEach((d) => { d.style.zoom = z; });
+    });
   }
   window.addEventListener('resize', fitGuide);
 
@@ -192,9 +193,10 @@
       const n = S.entries.filter((e) => e.eventId === ev.id && !e.withdrawn).length;
       const team = BT.isTeamEv(ev);
       return `<div class="card"><div class="row"><h3 style="margin:0"><span class="evdot" style="background:${BTR.evColor(BT.ctx(S), ev.id)}"></span>${esc(ev.name || '（種目名未設定）')}</h3><span class="pill">${n}${team ? 'チーム' : '組'}</span><span class="spacer"></span>
-        <button class="btn sm" data-act="evUp" data-id="${ev.id}"${i === 0 ? ' disabled' : ''}>↑</button><button class="btn sm" data-act="evDown" data-id="${ev.id}"${i === S.events.length - 1 ? ' disabled' : ''}>↓</button><button class="btn sm danger" data-act="evDel" data-id="${ev.id}">削除</button></div>
+        <button class="btn sm" data-act="evUp" data-id="${ev.id}"${i === 0 ? ' disabled' : ''}>↑</button><button class="btn sm" data-act="evDown" data-id="${ev.id}"${i === S.events.length - 1 ? ' disabled' : ''}>↓</button><button class="btn sm" data-act="evDup" data-id="${ev.id}">複製</button><button class="btn sm danger" data-act="evDel" data-id="${ev.id}">削除</button></div>
         <div class="grid" style="margin-top:10px">
         ${field('種目名', p + 'name', { placeholder: '一般男子ダブルス' })}
+        ${field('略称（試合コード用）', p + 'code', { placeholder: '例: MA → 試合コード MA-1' })}
         ${field('種別', p + 'type', { type: 'select', options: Object.entries(BT.TYPES), rerender: true })}
         ${field('試合形式', p + 'format', { type: 'select', options: Object.entries(BT.FORMATS), rerender: true })}
         ${ev.format !== 'tournament' ? field(ev.format === 'league' ? '1グループの人数（空欄=全員で1リーグ）' : '1グループの人数', p + 'groupSize', { type: 'number', min: 2 }) : ''}
@@ -230,7 +232,7 @@
       <button class="btn" data-act="csvExport">CSV出力</button>
       ${S.sheetUrl && linked() ? '<button class="btn primary" data-act="pullEntries">Web申込を取り込む</button>' : ''}
       </div>
-      ${applyUrl ? `<p class="small" style="margin:10px 0 0">参加者用 申込ページ：<a href="${esc(applyUrl)}" target="_blank" rel="noopener">${esc(applyUrl.slice(0, 80))}…</a> <button class="btn sm" data-act="copy" data-text="${esc(applyUrl)}">URLをコピー</button></p>` : '<p class="small muted" style="margin:10px 0 0">参加者がWebから直接申し込めるようにするには「設定・連携」でGoogle連携を設定し、この大会をスプレッドシートに保存してください。紙・メール・Googleフォームの申込はCSV取込または手入力で登録できます。</p>'}
+      ${applyUrl ? `<p class="small" style="margin:10px 0 0">参加者用 申込ページ：<button class="btn sm primary" data-act="copy" data-text="${esc(shareUrl('apply'))}">LINE・メールで送るURLをコピー</button> <span class="muted">（リンクに大会名が表示されます）</span>　<a href="${esc(applyUrl)}" target="_blank" rel="noopener">申込ページを開く</a></p>` : '<p class="small muted" style="margin:10px 0 0">参加者がWebから直接申し込めるようにするには「設定・連携」でGoogle連携を設定し、この大会をスプレッドシートに保存してください。紙・メール・Googleフォームの申込はCSV取込または手入力で登録できます。</p>'}
       </div>`;
     if (!S.events.length) return h + '<p class="muted">先に「種目」タブで種目を登録してください。</p>';
     evs.forEach((ev) => {
@@ -320,6 +322,43 @@
       <span class="spacer"></span><button class="btn" data-act="printTT">印刷</button></div><div id="ttBody" style="margin-top:10px">
       ${ui.ttView === 'list' ? BTR.matchList(c, { eventId: ui.ttEv }) : BTR.timetable(c, { eventId: ui.ttEv })}</div>
       <p class="small muted">試合をクリックすると時刻・コートの変更や結果入力ができます。</p></div>`;
+  };
+
+  // ===== パンフレット =====
+  VIEWS.pamphlet = () => {
+    const T = S.tournament;
+    const t = 'tournament.';
+    const pm = T.pamphlet = Object.assign({ cover: true, officers: true, timetable: true, entries: true, draws: true }, T.pamphlet || {});
+    void pm;
+    const evCodes = S.events.map((ev, i) => `<tr><td>${esc(ev.name)}</td><td style="width:120px"><input data-bind="events.#${ev.id}.code" value="${esc(ev.code)}" placeholder="${esc(BT.groupName(i))}"></td></tr>`).join('');
+    return `<div class="help">大会当日に配るプログラム（表紙・大会役員と大会次第・タイムテーブル・参加者一覧・対戦表）を作ります。組み合わせとタイムテーブルを作成してから印刷してください。</div>
+    <div class="split"><div>
+      <div class="card"><h3>載せるページ</h3><div class="row">
+        ${field('表紙', t + 'pamphlet.cover', { type: 'checkbox', rerender: true })}
+        ${field('大会役員・大会次第', t + 'pamphlet.officers', { type: 'checkbox', rerender: true })}
+        ${field('タイムテーブル', t + 'pamphlet.timetable', { type: 'checkbox', rerender: true })}
+        ${field('参加者一覧', t + 'pamphlet.entries', { type: 'checkbox', rerender: true })}
+        ${field('対戦表', t + 'pamphlet.draws', { type: 'checkbox', rerender: true })}</div></div>
+      <div class="card"><h3>表紙</h3>
+        <p class="small muted">大会名・期日・場所・主催は「大会要項」の内容が入ります。</p>
+        <div class="row">${T.coverImage ? `<img src="${esc(T.coverImage)}" alt="" style="max-height:90px;border:1px solid var(--line);border-radius:4px"><button class="btn sm danger" data-act="coverDel">画像を削除</button>` : ''}<label class="btn sm">表紙の画像を選ぶ<input type="file" accept="image/*" id="coverFile" hidden></label></div></div>
+      <div class="card"><h3>大会役員</h3>
+        <table class="tbl"><thead><tr><th>役職</th><th>所属</th><th>氏名（複数は改行）</th><th></th></tr></thead><tbody>
+        ${(T.officers || []).map((o, i) => `<tr><td style="width:110px"><input data-bind="tournament.officers.${i}.role" value="${esc(o.role)}"></td><td><input data-bind="tournament.officers.${i}.org" value="${esc(o.org)}"></td><td><textarea rows="1" data-bind="tournament.officers.${i}.name" style="min-height:34px">${esc(o.name)}</textarea></td><td><button class="btn sm danger" data-act="delOfficer" data-i="${i}">×</button></td></tr>`).join('')}
+        </tbody></table><button class="btn sm" data-act="addOfficer" style="margin-top:6px">＋ 行を追加</button></div>
+      <div class="card"><h3>大会次第</h3>
+        <table class="tbl"><thead><tr><th>項目</th><th>時刻</th><th>備考</th><th></th></tr></thead><tbody>
+        ${(T.agenda || []).map((a, i) => `<tr><td style="width:110px"><input data-bind="tournament.agenda.${i}.item" value="${esc(a.item)}"></td><td style="width:130px"><input data-bind="tournament.agenda.${i}.time" value="${esc(a.time)}"></td><td><input data-bind="tournament.agenda.${i}.note" value="${esc(a.note)}" placeholder="例: ※集合しての開会式は行いません。"></td><td><button class="btn sm danger" data-act="delAgenda" data-i="${i}">×</button></td></tr>`).join('')}
+        </tbody></table><button class="btn sm" data-act="addAgenda" style="margin-top:6px">＋ 行を追加</button></div>
+      <div class="card"><h3>試合方式・注意事項（タイムテーブルの下）</h3>
+        ${field('', t + 'programNotes', { type: 'textarea', rows: 8 })}
+        <button class="btn sm" data-act="programNotesTemplate">文例を入れる</button></div>
+      <div class="card"><h3>試合コード（タイムテーブル・対戦表に表示）</h3>
+        <p class="small muted">種目の略称と試合順の番号で「MA-1」のように表示します。略称は「種目」タブでも変更できます。</p>
+        <table class="tbl"><thead><tr><th>種目</th><th>略称</th></tr></thead><tbody>${evCodes}</tbody></table></div>
+    </div>
+    <div><div class="row no-print" style="margin-bottom:8px"><b>プレビュー</b><span class="spacer"></span><button class="btn primary" data-act="printPamphlet">印刷 / PDF保存</button></div>
+      <div class="a4-preview" id="pmPreview">${BTR.pamphlet(S)}</div></div></div>`;
   };
 
   // ===== 6. 進行・結果入力 =====
@@ -724,6 +763,24 @@
     evAdd(el, name) { const ev = BT.newEvent(); if (typeof name === 'string') { ev.name = name; if (/シングルス/.test(name)) ev.type = 'singles'; if (/団体/.test(name)) { ev.type = 'team'; ev.minutes = 60; } } S.events.push(ev); save(); render(); },
     evUp(el) { const i = S.events.findIndex((e) => e.id === el.dataset.id); if (i > 0) { [S.events[i - 1], S.events[i]] = [S.events[i], S.events[i - 1]]; save(); render(); } },
     evDown(el) { const i = S.events.findIndex((e) => e.id === el.dataset.id); if (i < S.events.length - 1) { [S.events[i + 1], S.events[i]] = [S.events[i], S.events[i + 1]]; save(); render(); } },
+    evDup(el) {
+      const i = S.events.findIndex((e) => e.id === el.dataset.id);
+      const ev = Object.assign({}, JSON.parse(JSON.stringify(S.events[i])), { id: BT.uid('e'), name: S.events[i].name + '（コピー）', code: '' });
+      S.events.splice(i + 1, 0, ev); save(); render(); toast('種目を複製しました（申込・組み合わせは複製されません）');
+      const inp = main.querySelector(`[data-bind="events.#${ev.id}.name"]`); if (inp) { inp.focus(); inp.select(); }
+    },
+    addOfficer() { S.tournament.officers.push({ role: '', org: '', name: '' }); save(); render(); },
+    delOfficer(el) { S.tournament.officers.splice(+el.dataset.i, 1); save(); render(); },
+    addAgenda() { S.tournament.agenda.push({ item: '', time: '', note: '' }); save(); render(); },
+    delAgenda(el) { S.tournament.agenda.splice(+el.dataset.i, 1); save(); render(); },
+    coverDel() { S.tournament.coverImage = ''; save(); render(); },
+    programNotesTemplate() {
+      const T = S.tournament;
+      const ev = S.events[0] || {};
+      T.programNotes = '(1)流し込みでコールします。時間・コートの変更にご注意ください。\n(2)試合方法\n　' + (ev.games == 1 ? '1ゲーム' : (ev.games || 3) + 'ゲームマッチ') + '（' + (ev.points || 21) + '点）\n　順位は次の順で決まる\n　　①勝ち数\n　　②得失点\n　　③①～②で決まらない場合は当該対戦勝者\n(3)相互審判とします。（不足する時は本部へお申し出ください。）\n(4)早めのオーダー用紙提出にご協力ください。\n(5)連続試合になる場合は十分な間隔を空けて行います。';
+      save(); render();
+    },
+    printPamphlet() { printHTML((S.tournament.name || '大会') + ' プログラム', BTR.pamphlet(S)); },
     evDel(el) {
       const id = el.dataset.id; const n = S.entries.filter((e) => e.eventId === id).length;
       if (!confirm(`この種目を削除しますか？${n ? `\n申込${n}件と組み合わせ・結果も削除されます。` : ''}`)) return;
@@ -902,6 +959,7 @@
       save();
       if (el.dataset.rerender && e.type === 'change') render();
       else if (ui.tab === 'guide') { const p = $('#guidePreview'); if (p) { p.innerHTML = BTR.guide(S); fitGuide(); } }
+      else if (ui.tab === 'pamphlet') { const p = $('#pmPreview'); if (p) { p.innerHTML = BTR.pamphlet(S); fitGuide(); } }
     }
   };
   main.addEventListener('input', onInput);
@@ -911,6 +969,7 @@
     if (el.id === 'presetSel' && el.value) { ACT.evAdd(null, el.value); return; }
     if (el.id === 'csvFile' && el.files[0]) { readFile(el.files[0], importCSV); return; }
     if (el.id === 'qrFile' && el.files[0]) { loadQr(el.files[0]); return; }
+    if (el.id === 'coverFile' && el.files[0]) { loadCover(el.files[0]); return; }
     if (el.dataset.members) { render(); return; }
     if (el.id === 'jsonFile' && el.files[0]) {
       readFile(el.files[0], (text) => {
@@ -921,6 +980,22 @@
     }
     if (el.dataset.bind && el.dataset.rerender) render();
   });
+  // 表紙画像（長辺1000pxに縮小してJPEG保存）
+  function loadCover(file) {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1000 / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+        S.tournament.coverImage = cv.toDataURL('image/jpeg', 0.85); save(); render();
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  }
+
   // QRコード画像を縮小して保存
   function loadQr(file) {
     const r = new FileReader();

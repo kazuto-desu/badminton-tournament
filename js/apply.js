@@ -5,7 +5,8 @@
   'use strict';
   const esc = BT.esc;
   const app = document.getElementById('app');
-  const api = new URLSearchParams(location.search).get('api');
+  const qs = new URLSearchParams(location.search);
+  const api = qs.get('api'), tid = qs.get('t');
   let snap = null;
 
   function closedReason() {
@@ -76,7 +77,7 @@
       const btn = document.getElementById('submit');
       btn.disabled = true; btn.textContent = '送信中…';
       try {
-        const r = await BTAPI.apply(api, entry);
+        const r = await BTAPI.apply(api, tid, entry);
         app.innerHTML = `<div class="card"><h3>✅ 申込を受け付けました</h3><p>種目：<b>${esc(ev.name)}</b><br>${entry.teamName ? `<b>${esc(entry.teamName)}</b>（${esc(entry.team)}）<br>` : ''}${entry.players.map((p) => esc(p.name) + (p.team ? `（${esc(p.team)}）` : '')).join('・')}</p><p class="small muted">受付番号：<code>${esc(r.id)}</code>　この画面を保存またはスクリーンショットしておいてください。</p><p><a href="${esc(location.href)}">続けて別の申込をする</a></p></div>`;
         window.scrollTo(0, 0);
       } catch (err) {
@@ -88,7 +89,7 @@
 
   (async () => {
     if (!api) { app.innerHTML = '<div class="notice err">申込ページのURLが正しくありません。大会主催者から案内されたURLを開いてください。</div>'; return; }
-    try { snap = await BTAPI.getPublic(api); render(); }
+    try { snap = await BTAPI.getPublic(api, tid); render(); }
     catch (e) { app.innerHTML = `<div class="notice err">大会情報を読み込めませんでした：${esc(e.message)}</div>`; }
   })();
 })();

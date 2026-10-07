@@ -291,5 +291,76 @@
     }).join('');
   };
 
+  // ---------- スプレッドシート用の表データ ----------
+  R.sheetData = (state) => {
+    const c = BT.ctx(state);
+    const t = state.tournament;
+    const evName = (id) => (c.event.get(id) || {}).name || '';
+    const names = (id) => { const en = c.entry.get(id); return en ? (en.teamName ? en.teamName : BT.entryNames(en)) : ''; };
+    const team = (id) => BT.entryTeam(c.entry.get(id));
+    const out = {};
+
+    out['大会情報'] = [['項目', '内容'],
+      ['大会名', t.name], ['表題', `${t.name}　${t.titleSuffix || ''}`], ['宛名', t.addressee], ['発行日', t.issueDate], ['発行者', t.issuer || t.organizer], ['代表者', t.representative],
+      ['主催', t.organizer], ['主管', t.host], ['後援', t.sponsor], ['期日', R.fmtDate(t.date, t.era)], ['受付時刻', t.receptionTime], ['試合開始', t.startTime],
+      ['場所', t.venue], ['住所', t.address], ['種目', t.eventsText], ['参加資格', t.eligibility], ['試合方法', t.method], ['使用球', t.shuttle],
+      ['申し込み方法', t.applyMethod], ['申し込み先', t.contactName], ['TEL', t.contactTel], ['E-Mail', t.contactEmail], ['LINE', t.contactLine],
+      ['申込期限', R.fmtDate(t.deadline, t.era)], ['申込期限の注意', t.deadlineNote], ['参加料等', t.fee], ['その他', t.notes]]
+      .concat((t.extraSections || []).map((s) => [s.title, s.body]))
+      .concat([['コート数', t.courts], ['1試合の目安（分）', t.matchMinutes], ['最低休憩（分）', t.restMinutes], ['最終保存', new Date().toLocaleString('ja-JP')]]);
+
+    out['種目'] = [['No', '種目', '種別', '試合形式', '1グループの数', '決勝T進出数', 'ゲーム数', '点数', '参加料', '定員', '使用コート', '試合時間（分）', '団体戦の内訳', 'メンバー人数', '3位決定戦', '備考', '申込数']]
+      .concat(state.events.map((ev, i) => [i + 1, ev.name, BT.TYPES[ev.type], BT.FORMATS[ev.format], ev.format === 'tournament' ? '' : ev.groupSize, ev.format === 'league_tournament' ? ev.advance : '',
+        ev.games, ev.points, ev.fee, ev.capacity, ev.courts, ev.minutes, BT.isTeamEv(ev) ? BT.rubberList(ev).join('・') : '', BT.isTeamEv(ev) ? `${ev.teamMin}〜${ev.teamMax}` : '',
+        ev.thirdPlace ? 'あり' : '', ev.note, state.entries.filter((e) => e.eventId === ev.id && !e.withdrawn).length]));
+
+    const SRC = { web: 'Web', csv: 'CSV', manual: '手入力' };
+    out['申込一覧'] = [['種目', 'No', 'シード', 'チーム名', '選手・メンバー', 'フリガナ', '所属', '代表者', 'メール', '電話', '備考', '受付方法', '棄権', '申込ID']];
+    state.events.forEach((ev) => state.entries.filter((e) => e.eventId === ev.id).forEach((en, i) => {
+      const ps = (en.players || []).filter((p) => p && p.name);
+      out['申込一覧'].push([ev.name, i + 1, en.seed, en.teamName, ps.map((p) => p.name).join('、'), ps.map((p) => p.kana).filter(Boolean).join('、'), BT.entryTeam(en),
+        en.contactName, en.contactEmail, en.contactTel, en.memo, SRC[en.source] || en.source, en.withdrawn ? '棄権' : '', en.id]);
+    }));
+
+    out['組み合わせ'] = [['種目', '区分', '番号', '選手・チーム', '所属', 'シード']];
+    state.events.forEach((ev) => {
+      const d = state.draws[ev.id];
+      if (!d) return;
+      (d.groups || []).forEach((g) => g.entryIds.forEach((id, i) => out['組み合わせ'].push([ev.name, `予選${g.name}組`, i + 1, names(id), team(id), (c.entry.get(id) || {}).seed || ''])));
+      const r1 = state.matches.filter((m) => m.eventId === ev.id && m.stage === 'K' && m.round === 1).sort((a, b) => a.idx - b.idx);
+      r1.forEach((m) => ['a', 'b'].forEach((s, k) => {
+        const lb = R.sideLabel(c, m[s]);
+        out['組み合わせ'].push([ev.name, (d.groups || []).length ? '決勝トーナメント' : 'トーナメント', m.idx * 2 + k + 1, lb.bye ? '（不戦）' : lb.text.replace(/（.*）$/, ''), lb.id ? team(lb.id) : '', lb.id ? (c.entry.get(lb.id).seed || '') : '']);
+      }));
+    });
+
+    out['試合結果'] = [['試合No', '開始予定', 'コート', '種目', '回戦', '選手・チームA', '所属A', '選手・チームB', '所属B', 'スコア', '勝者', '状態', '結果の種類', '団体戦の内訳']];
+    state.matches.filter((m) => !BT.isAuto(c, m)).sort((x, y) => ((x.no || 1e9) - (y.no || 1e9)) || (BT.phaseRank(c, x) - BT.phaseRank(c, y)))
+      .forEach((m) => {
+        const [a, b] = BT.sides(c, m), w = BT.winnerSide(c, m);
+        const la = R.sideLabel(c, m.a), lb = R.sideLabel(c, m.b);
+        const rub = (m.rubbers || []).map((r) => `${r.label}：${r.pa || ''}${r.pa || r.pb ? ' 対 ' : ''}${r.pb || ''} ${(r.scores || []).map((x) => x.join('-')).join(', ')}${BT.rubberWinner(r) ? (BT.rubberWinner(r) === 'a' ? '（A勝）' : '（B勝）') : ''}`).join(' / ');
+        out['試合結果'].push([m.no || '', BT.fmtMin(m.time), m.court || '', evName(m.eventId), R.stageLabel(c, m),
+          a && a !== 'BYE' ? names(a) : la.text, a && a !== 'BYE' ? team(a) : '', b && b !== 'BYE' ? names(b) : lb.text, b && b !== 'BYE' ? team(b) : '',
+          m.result ? BT.scoreText(m) : '', w ? names(w === 'a' ? a : b) : '', m.result ? '終了' : m.status === 'playing' ? '試合中' : '',
+          m.result ? ({ normal: '', retired: '途中棄権', walkover: '棄権' }[m.resultType || 'normal']) : '', rub]);
+      });
+
+    out['リーグ順位'] = [['種目', '組', '順位', '選手・チーム', '所属', '試合数', '勝', '敗', '得失マッチ', '得失ゲーム', '得失点', '確定']];
+    state.events.forEach((ev) => ((state.draws[ev.id] || {}).groups || []).forEach((g) => {
+      const st = BT.standings(c, ev.id, g.name);
+      st.rows.forEach((r) => out['リーグ順位'].push([ev.name, g.name, r.rank, names(r.id), team(r.id), r.played, r.win, r.lose, BT.isTeamEv(ev) ? `${r.mw}-${r.ml}` : '', `${r.gw}-${r.gl}`, `${r.pw}-${r.pl}`, st.complete ? '確定' : '途中']));
+    }));
+
+    out['入賞者'] = [['種目', '順位', '選手・チーム', '所属', 'メンバー']];
+    state.events.forEach((ev) => {
+      const fr = BT.finalRanking(c, ev);
+      const push = (rank, id) => { const en = c.entry.get(id); out['入賞者'].push([ev.name, typeof rank === 'number' ? rank + '位' : rank, names(id), team(id), en && en.teamName ? BT.memberNames(en).join('、') : '']); };
+      if (fr.type === 'K') fr.rows.forEach((r) => push(r.rank, r.id));
+      else if (fr.type === 'L') fr.groups.forEach((g) => { if (g.st.complete) g.st.rows.slice(0, 3).forEach((r) => push((fr.groups.length > 1 ? g.name + '組' : '') + r.rank + '位', r.id)); });
+    });
+    return out;
+  };
+
   global.BTR = R;
 })(typeof window !== 'undefined' ? window : globalThis);

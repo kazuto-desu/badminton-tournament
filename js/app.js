@@ -29,12 +29,19 @@
   }
   const loadT = (id) => { try { return migrate(JSON.parse(LS.get('bt.t.' + id))); } catch (e) { return null; } };
 
+  // Google連携の設定（全大会で共通）
+  const getApi = () => { try { return JSON.parse(LS.get('bt.api')) || {}; } catch (e) { return {}; } };
+  const setApi = (o) => LS.set('bt.api', JSON.stringify(Object.assign(getApi(), o)));
+  const API = () => { const a = getApi(); return { url: a.url || (S && S.tournament.apiUrl) || '', key: a.key || (S && S.tournament.apiKey) || '', indexUrl: a.indexUrl || '' }; };
+  const linked = () => !!(API().url && API().key);
+  const pageUrl = (page) => (API().url ? new URL(page, location.href).href + '?api=' + encodeURIComponent(API().url) + '&t=' + encodeURIComponent(S.id) : '');
+
   let S = null;
   let ui = (() => { try { return JSON.parse(LS.get('bt.ui')) || {}; } catch (e) { return {}; } })();
   ui = Object.assign({ tab: 'guide', evFilter: '', ttView: 'grid', ttEv: '', runEv: '', runFilter: 'pending', swap: {} }, ui);
   const saveUI = () => LS.set('bt.ui', JSON.stringify(Object.assign({}, ui, { swap: {} })));
 
-  let saveTimer = null, pubTimer = null;
+  let saveTimer = null, pubTimer = null, syncing = false;
   function save(immediate) {
     S.updatedAt = Date.now();
     const write = () => {
@@ -48,9 +55,9 @@
     };
     clearTimeout(saveTimer);
     if (immediate) write(); else saveTimer = setTimeout(write, 300);
-    if (S.tournament.autoPublish && S.tournament.apiUrl && S.tournament.apiKey) {
+    if (!syncing && S.tournament.autoPublish !== false && S.sheetUrl && linked()) {
       clearTimeout(pubTimer);
-      pubTimer = setTimeout(() => publish(true), 4000);
+      pubTimer = setTimeout(() => publish(true), 8000);
     }
   }
   const setStatus = (t) => { $('#status').textContent = t; };
@@ -208,16 +215,16 @@
   VIEWS.entries = () => {
     const evs = ui.evFilter ? S.events.filter((e) => e.id === ui.evFilter) : S.events;
     const t = S.tournament;
-    const applyUrl = t.apiUrl ? new URL('apply.html', location.href).href + '?api=' + encodeURIComponent(t.apiUrl) : '';
+    const applyUrl = S.sheetUrl ? pageUrl('apply.html') : '';
     const total = S.entries.filter((e) => !e.withdrawn).length;
     let h = `<div class="card"><div class="row"><b>申込 ${total}組</b><span class="spacer"></span>
       <select data-act-change="evFilter"><option value="">すべての種目</option>${S.events.map((e) => `<option value="${e.id}"${ui.evFilter === e.id ? ' selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
       <button class="btn" data-act="csvTemplate">CSVひな形</button>
       <label class="btn">CSV取込<input type="file" accept=".csv,text/csv" id="csvFile" hidden></label>
       <button class="btn" data-act="csvExport">CSV出力</button>
-      ${t.apiUrl ? '<button class="btn primary" data-act="pullEntries">オンライン申込を取り込む</button>' : ''}
+      ${S.sheetUrl && linked() ? '<button class="btn primary" data-act="pullEntries">Web申込を取り込む</button>' : ''}
       </div>
-      ${applyUrl ? `<p class="small" style="margin:10px 0 0">参加者用 申込ページ：<a href="${esc(applyUrl)}" target="_blank" rel="noopener">${esc(applyUrl.slice(0, 80))}…</a> <button class="btn sm" data-act="copy" data-text="${esc(applyUrl)}">URLをコピー</button></p>` : '<p class="small muted" style="margin:10px 0 0">参加者がWebから直接申し込めるようにするには「設定・連携」でGoogle連携を設定してください。紙・メール・Googleフォームの申込はCSV取込または手入力で登録できます。</p>'}
+      ${applyUrl ? `<p class="small" style="margin:10px 0 0">参加者用 申込ページ：<a href="${esc(applyUrl)}" target="_blank" rel="noopener">${esc(applyUrl.slice(0, 80))}…</a> <button class="btn sm" data-act="copy" data-text="${esc(applyUrl)}">URLをコピー</button></p>` : '<p class="small muted" style="margin:10px 0 0">参加者がWebから直接申し込めるようにするには「設定・連携」でGoogle連携を設定し、この大会をスプレッドシートに保存してください。紙・メール・Googleフォームの申込はCSV取込または手入力で登録できます。</p>'}
       </div>`;
     if (!S.events.length) return h + '<p class="muted">先に「種目」タブで種目を登録してください。</p>';
     evs.forEach((ev) => {
@@ -349,7 +356,7 @@
           ${ready.length > 1 ? `<select data-act-change="callPick" data-court="${k}"><option value="">他の試合…</option>${ready.slice(0, 40).map((x) => `<option value="${x.id}">No.${x.no || '-'} ${esc(c.event.get(x.eventId).name)} ${esc(BTR.sideLabel(c, x.a, true).text)} vs ${esc(BTR.sideLabel(c, x.b, true).text)}</option>`).join('')}</select>` : ''}</div></div>`;
       }
     }
-    return `<div class="card"><div class="row"><h3 style="margin:0">コート進行</h3><span class="pill">${allDone} / ${allTotal} 試合終了</span><span class="spacer"></span>${S.tournament.apiUrl ? '<button class="btn" data-act="publish">結果を公開ページに反映</button>' : ''}</div>
+    return `<div class="card"><div class="row"><h3 style="margin:0">コート進行</h3><span class="pill">${allDone} / ${allTotal} 試合終了</span><span class="spacer"></span>${S.sheetUrl && linked() ? '<button class="btn" data-act="publish">今すぐ保存・公開</button>' : ''}</div>
       <p class="small muted">「コール」で試合中にし、終わったら「結果入力」。試合番号順に、出場中の選手と重ならない試合を候補に出します。</p>
       <div class="courts">${board}</div></div>
       <div class="card"><div class="row"><h3 style="margin:0">試合一覧</h3><span class="spacer"></span>
@@ -361,9 +368,9 @@
   // ===== 7. 結果 =====
   VIEWS.results = () => {
     const c = BT.ctx(S);
-    const viewUrl = S.tournament.apiUrl ? new URL('view.html', location.href).href + '?api=' + encodeURIComponent(S.tournament.apiUrl) : '';
+    const viewUrl = S.sheetUrl ? pageUrl('view.html') : '';
     return `<div class="card row no-print"><b>大会結果</b><span class="spacer"></span><button class="btn" data-act="resultCsv">全試合結果CSV</button><button class="btn" data-act="printResults">印刷</button>
-      ${viewUrl ? `<a class="btn" href="${esc(viewUrl)}" target="_blank" rel="noopener">公開ページを開く</a><button class="btn primary" data-act="publish">今すぐ公開</button>` : ''}</div>
+      ${viewUrl ? `<a class="btn" href="${esc(viewUrl)}" target="_blank" rel="noopener">公開ページを開く</a><button class="btn primary" data-act="publish">今すぐ保存・公開</button>` : ''}${S.sheetUrl ? `<a class="btn" href="${esc(S.sheetUrl)}" target="_blank" rel="noopener">スプレッドシートを開く</a>` : ''}</div>
       <div class="res-grid">${BTR.results(c)}</div>`;
   };
 
@@ -371,32 +378,43 @@
   VIEWS.settings = () => {
     const t = 'tournament.';
     const T = S.tournament;
-    const base = new URL('.', location.href).href;
-    const applyUrl = T.apiUrl ? base + 'apply.html?api=' + encodeURIComponent(T.apiUrl) : '';
-    const viewUrl = T.apiUrl ? base + 'view.html?api=' + encodeURIComponent(T.apiUrl) : '';
-    return `<div class="card"><h3>オンライン申込・結果公開（Google連携）</h3>
-      <div class="help"><b>設定手順（初回のみ・約5分）</b><ol>
-        <li>Googleドライブで新しいスプレッドシートを作成</li>
-        <li>「拡張機能」→「Apps Script」を開き、<a href="https://github.com/kazuto-desu/badminton-tournament/blob/main/gas/Code.gs" target="_blank" rel="noopener">Code.gs</a> の内容をすべて貼り付け</li>
-        <li>1行目付近の <code>ADMIN_KEY = 'change-me'</code> を自分だけが知る文字列（管理キー）に変更して保存</li>
-        <li>「デプロイ」→「新しいデプロイ」→ 種類「ウェブアプリ」／実行ユーザー「自分」／アクセス「全員」→ デプロイ（承認画面が出たら許可）</li>
-        <li>表示された「ウェブアプリのURL」と管理キーを下に入力し「接続テスト」</li></ol>
-        申込データはそのスプレッドシートの「申込」シートにも記録されます。</div>
-      <div class="grid">${field('ウェブアプリのURL', t + 'apiUrl', { cls: 'wide', placeholder: 'https://script.google.com/macros/s/..../exec', rerender: true })}
-      ${field('管理キー（ADMIN_KEY）', t + 'apiKey', { type: 'password' })}</div>
-      <div class="row" style="margin-top:10px"><button class="btn" data-act="ping">接続テスト</button><button class="btn primary" data-act="publish">大会情報を公開（申込受付開始）</button>
-      ${field('Web申込を受け付ける', t + 'acceptApply', { type: 'checkbox' })}
-      ${field('結果入力のたびに自動で公開', t + 'autoPublish', { type: 'checkbox' })}</div>
-      <div id="apiMsg"></div>
+    const a = API();
+    const applyUrl = S.sheetUrl ? pageUrl('apply.html') : '';
+    const viewUrl = S.sheetUrl ? pageUrl('view.html') : '';
+    const when = S.syncedAt ? new Date(S.syncedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    return `<div class="card"><h3>この大会のスプレッドシート</h3>
+      ${!linked() ? '<p class="notice warn">先に下の「Google連携」を設定してください。</p>' : S.sheetUrl
+        ? `<p>保存先：<a href="${esc(S.sheetUrl)}" target="_blank" rel="noopener">${esc(T.name || '（無題の大会）')} のスプレッドシートを開く</a>　<span class="small muted">最終保存 ${esc(when)}</span></p>`
+        : '<p class="small">まだGoogleに保存していません。「スプレッドシートを作成して保存」を押すと、Googleドライブの「バドミントン大会データ」フォルダにこの大会のスプレッドシートが作られます。</p>'}
+      <p class="small muted">保存される内容：大会情報（要項）・種目・申込一覧・Web申込・組み合わせ・試合結果（タイムテーブル）・リーグ順位・入賞者、およびアプリの全データ（別のパソコンで復元用）。</p>
+      <div class="row"><button class="btn primary" data-act="publish"${linked() ? '' : ' disabled'}>${S.sheetUrl ? '今すぐ保存・公開' : 'スプレッドシートを作成して保存'}</button>
+      ${field('変更を自動で保存・公開する（約8秒後）', t + 'autoPublish', { type: 'checkbox' })}
+      ${field('Web申込を受け付ける', t + 'acceptApply', { type: 'checkbox' })}</div>
       ${applyUrl ? `<table class="tbl" style="margin-top:12px"><tr><th>参加者用 申込ページ</th><td><a href="${esc(applyUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(applyUrl)}">URLをコピー</button></td></tr>
       <tr><th>公開ページ（要項・組み合わせ・タイムテーブル・速報）</th><td><a href="${esc(viewUrl)}" target="_blank" rel="noopener">開く</a> <button class="btn sm" data-act="copy" data-text="${esc(viewUrl)}">URLをコピー</button></td></tr></table>
-      <p class="small muted">公開されるのは要項・種目・選手名と所属・組み合わせ・結果のみです。代表者の連絡先は公開されません。種目や要項を変更したら「公開」を押し直してください。</p>` : ''}
+      <p class="small muted">公開ページに出るのは要項・種目・選手名と所属・組み合わせ・結果のみです。代表者の連絡先はスプレッドシートにだけ保存され、公開されません。</p>` : ''}
       </div>
+
+      <div class="card"><h3>Google連携（全大会共通・最初に1回だけ）</h3>
+      <div class="help"><b>設定手順（約5分）</b><ol>
+        <li>Googleドライブで新しいスプレッドシートを作成（名前は「大会運営_連携」など）</li>
+        <li>「拡張機能」→「Apps Script」を開き、<a href="https://github.com/kazuto-desu/badminton-tournament/blob/main/gas/Code.gs" target="_blank" rel="noopener">Code.gs</a> の内容をすべて貼り付け</li>
+        <li><code>ADMIN_KEY = 'change-me'</code> を自分だけが知る文字列（管理キー）に変更して保存</li>
+        <li>「デプロイ」→「新しいデプロイ」→ 種類「ウェブアプリ」／実行ユーザー「自分」／アクセス「全員」→ デプロイ（Googleドライブへのアクセス許可を求められたら許可）</li>
+        <li>表示された「ウェブアプリのURL」と管理キーを下に入力して「接続テスト」</li></ol>
+        以後、大会ごとのスプレッドシートは自動で作られます。連携に使ったスプレッドシートには「大会一覧」シートができ、全大会へのリンクが並びます。</div>
+      <div class="grid"><label class="f wide"><span>ウェブアプリのURL</span><input id="apiUrlIn" value="${esc(a.url)}" placeholder="https://script.google.com/macros/s/..../exec"></label>
+      <label class="f"><span>管理キー（ADMIN_KEY）</span><input id="apiKeyIn" type="password" value="${esc(a.key)}"></label></div>
+      <div class="row" style="margin-top:10px"><button class="btn" data-act="ping">接続テスト</button>${a.indexUrl ? `<a class="btn" href="${esc(a.indexUrl)}" target="_blank" rel="noopener">大会一覧（スプレッドシート）を開く</a>` : ''}</div>
+      <div id="apiMsg"></div>
+      <p class="small muted">URLと管理キーはこのブラウザに保存されます。別のパソコンでは同じURL・管理キーを入力し、下の「Googleから大会を読み込む」で続きから作業できます。</p>
+      </div>
+
       <div class="card"><h3>データの保存・バックアップ</h3>
-      <p class="small muted">データはこのブラウザに自動保存されます。別のパソコンで続ける場合や念のためのバックアップに、ファイル書き出しかクラウド保存を使ってください。</p>
-      <div class="row"><button class="btn" data-act="exportJson">ファイルに書き出し（JSON）</button><label class="btn">ファイルから読み込み<input type="file" accept=".json,application/json" id="jsonFile" hidden></label>
-      ${T.apiUrl ? '<button class="btn" data-act="cloudSave">クラウドに保存</button><button class="btn" data-act="cloudLoad">クラウドから読み込み</button>' : ''}</div></div>
-      <div class="card"><h3>大会の管理</h3><div class="row"><button class="btn" data-act="newT">新しい大会を作成</button><button class="btn" data-act="dupT">この大会を複製（要項・種目のみ）</button><button class="btn" data-act="demo">デモデータで新規作成</button><span class="spacer"></span><button class="btn danger" data-act="delT">この大会を削除</button></div></div>`;
+      <p class="small muted">作業中のデータはこのブラウザにも自動保存されます。</p>
+      <div class="row">${linked() ? '<button class="btn primary" data-act="cloudLoad">Googleから大会を読み込む</button>' : ''}<button class="btn" data-act="exportJson">ファイルに書き出し（JSON）</button><label class="btn">ファイルから読み込み<input type="file" accept=".json,application/json" id="jsonFile" hidden></label></div></div>
+      <div class="card"><h3>大会の管理</h3><div class="row"><button class="btn" data-act="newT">新しい大会を作成</button><button class="btn" data-act="dupT">この大会を複製（要項・種目のみ）</button><button class="btn" data-act="demo">デモデータで新規作成</button><span class="spacer"></span><button class="btn danger" data-act="delT">この大会をこのブラウザから削除</button></div>
+      <p class="small muted">ブラウザから削除しても、Googleのスプレッドシートは残ります。</p></div>`;
   };
 
   // ---------- 試合モーダル ----------
@@ -533,15 +551,24 @@
   }
 
   // ---------- 公開・通信 ----------
+  // 大会スプレッドシートへ保存（初回は自動作成）＋公開ページ更新
   async function publish(silent) {
-    const T = S.tournament;
+    const a = API();
+    if (!a.url || !a.key) { if (!silent) alert('先に「設定・連携」でGoogle連携を設定してください。'); return; }
+    const target = S;
+    const state = JSON.parse(JSON.stringify(target));
+    delete state.tournament.apiUrl; delete state.tournament.apiKey;
+    setStatus('Googleに保存中…');
     try {
-      await BTAPI.publish(T.apiUrl, T.apiKey, BT.publicSnapshot(S));
-      setStatus('公開しました ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }));
-      if (!silent) toast('公開ページに反映しました');
+      const r = await BTAPI.sync(a.url, a.key, { tid: target.id, snapshot: BT.publicSnapshot(target), state, sheets: BTR.sheetData(target) });
+      target.sheetUrl = r.url; target.syncedAt = Date.now();
+      syncing = true; if (target === S) save(true); else LS.set('bt.t.' + target.id, JSON.stringify(target)); syncing = false;
+      setStatus('Googleに保存しました ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }));
+      if (!silent) { toast('スプレッドシートに保存し、公開ページを更新しました'); if (ui.tab === 'settings' || ui.tab === 'results' || ui.tab === 'entries') render(); }
     } catch (e) {
-      setStatus('⚠ 公開に失敗: ' + e.message);
-      if (!silent) alert('公開に失敗しました：' + e.message);
+      syncing = false;
+      setStatus('⚠ Google保存に失敗: ' + e.message);
+      if (!silent) alert('Googleへの保存に失敗しました：' + e.message);
     }
   }
 
@@ -715,9 +742,8 @@
       download('申込一覧.csv', BT.toCSV(rows), 'text/csv');
     },
     async pullEntries() {
-      const T = S.tournament;
       try {
-        const r = await BTAPI.entries(T.apiUrl, T.apiKey);
+        const r = await BTAPI.entries(API().url, API().key, S.id);
         const have = new Set(S.entries.map((e) => e.id).concat(S.ignoredIds));
         let added = 0, skipped = 0;
         (r.entries || []).forEach((en) => {
@@ -726,7 +752,7 @@
           S.entries.push(Object.assign(BT.newEntry(en.eventId), en, { source: 'web' })); added++;
         });
         save(); render();
-        alert(`オンライン申込 ${added}件を新たに取り込みました。${skipped ? `\n（削除済みの種目への申込 ${skipped}件は除外）` : ''}`);
+        alert(`Web申込 ${added}件を新たに取り込みました。${skipped ? `\n（削除済みの種目への申込 ${skipped}件は除外）` : ''}`);
       } catch (e) { alert('取り込みに失敗しました：' + e.message); }
     },
     copy(el) { navigator.clipboard.writeText(el.dataset.text).then(() => toast('コピーしました'), () => prompt('コピーしてください', el.dataset.text)); },
@@ -764,9 +790,15 @@
     unplay(el) { const m = S.matches.find((x) => x.id === el.dataset.id); m.status = ''; m.startedAt = null; save(); render(); },
     publish() { publish(false); },
     async ping() {
-      const T = S.tournament, box = $('#apiMsg');
-      try { await BTAPI.ping(T.apiUrl, T.apiKey); box.innerHTML = '<div class="notice ok">接続できました。「大会情報を公開」を押すと申込受付・公開ページが使えるようになります。</div>'; }
-      catch (e) { box.innerHTML = `<div class="notice err">接続できません：${esc(e.message)}</div>`; }
+      const box = $('#apiMsg');
+      const url = $('#apiUrlIn').value.trim(), key = $('#apiKeyIn').value;
+      setApi({ url, key });
+      try {
+        const r = await BTAPI.ping(url, key);
+        setApi({ indexUrl: r.indexUrl || '' });
+        render();
+        $('#apiMsg').innerHTML = '<div class="notice ok">接続できました。上の「スプレッドシートを作成して保存」を押すと、この大会のスプレッドシートが作られます。</div>';
+      } catch (e) { box.innerHTML = `<div class="notice err">接続できません：${esc(e.message)}</div>`; }
     },
     resultCsv() {
       const c = BT.ctx(S);
@@ -779,14 +811,18 @@
     },
     printResults() { printHTML('大会結果', `<h2>${esc(S.tournament.name)}　大会結果</h2><div class="res-grid">${BTR.results(BT.ctx(S))}</div>`); },
     exportJson() { download(`${S.tournament.name || 'tournament'}_${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(S, null, 1), 'application/json'); },
-    async cloudSave() { const T = S.tournament; try { await BTAPI.saveState(T.apiUrl, T.apiKey, S); toast('クラウドに保存しました'); } catch (e) { alert('保存に失敗：' + e.message); } },
     async cloudLoad() {
-      const T = S.tournament;
+      const a = API();
       try {
-        const r = await BTAPI.loadState(T.apiUrl, T.apiKey);
-        if (!r.state) { alert('クラウドに保存されたデータがありません'); return; }
-        if (!confirm(`クラウドのデータ（${new Date(r.state.updatedAt).toLocaleString('ja-JP')} 保存）で、この大会を上書きしますか？`)) return;
-        S = migrate(r.state); save(true); render(); toast('読み込みました');
+        const r = await BTAPI.list(a.url, a.key);
+        if (!r.list || !r.list.length) { alert('Googleに保存された大会がありません'); return; }
+        const v = prompt('読み込む大会の番号を入力してください\n\n' + r.list.map((x, i) => `${i + 1}. ${x.date || ''} ${x.name || '（無題）'}`).join('\n'), '1');
+        const item = v && r.list[+v - 1]; if (!item) return;
+        const st = await BTAPI.loadState(a.url, a.key, item.id);
+        if (!st.state) { alert('この大会のデータが見つかりません'); return; }
+        const local = loadT(item.id);
+        if (local && !confirm(`このブラウザにも同じ大会があります（最終更新 ${new Date(local.updatedAt).toLocaleString('ja-JP')}）。\nGoogleのデータ（${new Date(st.state.updatedAt).toLocaleString('ja-JP')}）で上書きしますか？`)) return;
+        S = migrate(st.state); S.sheetUrl = item.url; save(true); render(); toast('読み込みました');
       } catch (e) { alert('読み込みに失敗：' + e.message); }
     },
     newT() { createNew(); },
@@ -794,6 +830,7 @@
       const s = BT.newTournament();
       s.tournament = Object.assign({}, JSON.parse(JSON.stringify(S.tournament)), { name: S.tournament.name + '（コピー）' });
       s.events = S.events.map((e) => Object.assign({}, e, { id: BT.uid('e') }));
+      delete s.sheetUrl; delete s.syncedAt;
       createNew(s); toast('複製しました');
     },
     delT() {

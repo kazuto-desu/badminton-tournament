@@ -46,7 +46,7 @@
       applyMethod: '別紙申し込み用紙に必要事項を記入のうえ、下記までメールまたはLINEで申し込み下さい。',
       deadlineNote: '※締切期限厳守でお願い致します', era: 'wareki', showEventTable: false,
       courts: 6, startTime: '09:00', matchMinutes: 20, restMinutes: 10,
-      apiUrl: '', apiKey: '', autoPublish: false, acceptApply: true,
+      autoPublish: true, acceptApply: true,
     },
     events: [],
     entries: [],

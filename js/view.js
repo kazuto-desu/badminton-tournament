@@ -7,7 +7,7 @@
   const app = document.getElementById('app');
   const tabs = document.getElementById('tabs');
   const params = new URLSearchParams(location.search);
-  const api = params.get('api');
+  const api = params.get('api'), tid = params.get('t');
   let snap = null, c = null;
   let tab = params.get('tab') || 'results', evId = '', q = '';
 
@@ -44,7 +44,7 @@
 
   async function load() {
     try {
-      snap = await BTAPI.getPublic(api);
+      snap = await BTAPI.getPublic(api, tid);
       c = BT.ctx(snap);
       if (!document.activeElement || document.activeElement.id !== 'q') render();
     } catch (e) {

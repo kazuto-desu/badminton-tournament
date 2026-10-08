@@ -112,6 +112,10 @@
 
   function render() {
     if (S.sheetUrl && linked()) { S.tournament.applyUrl = pageUrl('apply.html'); S.tournament.formUrl = pageUrl('form.html'); }
+    // 別の大会（複製元など）の申込URLが残っていたら消す（QRコードが別の大会につながるのを防ぐ）
+    const mine = (u) => String(u || '').endsWith('&t=' + encodeURIComponent(S.id));
+    if (!mine(S.tournament.applyUrl)) S.tournament.applyUrl = '';
+    if (!mine(S.tournament.formUrl)) S.tournament.formUrl = '';
     refreshSelector();
     $('#tabs').innerHTML = TABS.map(([k, lb], i) => `<button data-tab="${k}" class="${ui.tab === k ? 'active' : ''}"><span class="num">${i + 1}</span>${lb}</button>`).join('');
     const sc = window.scrollY;
@@ -1005,7 +1009,7 @@
       const s = BT.newTournament();
       s.tournament = Object.assign({}, JSON.parse(JSON.stringify(S.tournament)), { name: S.tournament.name + '（コピー）' });
       s.events = S.events.map((e) => Object.assign({}, e, { id: BT.uid('e') }));
-      delete s.sheetUrl; delete s.syncedAt;
+      delete s.sheetUrl; delete s.syncedAt; s.tournament.applyUrl = ''; s.tournament.formUrl = '';
       createNew(s); toast('複製しました');
     },
     delT() {
